@@ -15,13 +15,13 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const { activeTab, setActiveTab, resetToDefaults, getWeeklyLimitsExceeded, userProfile, signOut } = useFerppaStore();
   const exceededCount = getWeeklyLimitsExceeded().length;
   const menuItems = [
-    { id: 'dashboard', label: 'COMMAND CENTER', icon: LayoutDashboard, badge: exceededCount > 0 ? exceededCount : undefined },
+    ...(userProfile?.role === 'ADMIN' ? [{ id: 'dashboard', label: 'COMMAND CENTER', icon: LayoutDashboard, badge: exceededCount > 0 ? exceededCount : undefined }] : []),
     { id: 'abastecimento', label: 'ABASTECIMENTO', icon: Fuel },
     { id: 'logistica', label: 'LOGÍSTICA & CUBAGEM', icon: Truck },
-    ...(userProfile?.role === 'ADMIN' ? [{ id: 'financeiro', label: 'FINANCEIRO DRE', icon: DollarSign }] : []),
+    { id: 'financeiro', label: userProfile?.role === 'ADMIN' ? 'FINANCEIRO DRE' : 'DESPESAS', icon: DollarSign },
     { id: 'telemetria', label: 'RASTREIO & TELEMETRIA', icon: Database },
-    { id: 'fleet', label: 'FROTA & EQUIPAMENTOS', icon: Settings },
-    { id: 'crm', label: 'CRM / LEADS', icon: Users },
+    ...(userProfile?.role === 'ADMIN' ? [{ id: 'fleet', label: 'FROTA & EQUIPAMENTOS', icon: Settings }] : []),
+    ...(userProfile?.role === 'ADMIN' ? [{ id: 'crm', label: 'CRM / LEADS', icon: Users }] : []),
   ];
 
   const handleReset = () => {

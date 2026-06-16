@@ -82,7 +82,8 @@ const createPOIIcon = (type: GeofenceType) => {
 };
 
 export default function ModuloTelemetria() {
-  const { geofences, addGeofence, deleteGeofence, fleet } = useFerppaStore();
+  const { geofences, addGeofence, deleteGeofence, fleet, userProfile } = useFerppaStore();
+  const isAdmin = userProfile?.role === 'ADMIN';
   // Geofence management state
   const [formName, setFormName] = useState("");
   const [formType, setFormType] = useState<GeofenceType>("EXTRACTION");
@@ -217,9 +218,9 @@ export default function ModuloTelemetria() {
   };
 
   return (
-    <div className="flex w-full h-full text-white bg-ferppa-dark relative overflow-hidden">
+    <div className="flex flex-col lg:flex-row w-full h-full text-white bg-ferppa-dark relative overflow-hidden">
       {/* 70% Left: The War Room Map Container */}
-      <div className="flex-1 h-full z-0 relative shadow-[inset_-10px_0_30px_rgba(0,0,0,0.5)]">
+      <div className="flex-1 h-[50vh] lg:h-full min-h-[300px] z-0 relative shadow-[inset_-10px_0_30px_rgba(0,0,0,0.5)]">
         <MapContainer
           center={[CENTER_LAT, CENTER_LNG]}
           zoom={13}
@@ -347,7 +348,7 @@ export default function ModuloTelemetria() {
       </div>
 
       {/* 30% Right: Geofence Manager Sidebar */}
-      <div className="w-[420px] shrink-0 h-full bg-[#172122]/95 backdrop-blur-2xl border-l border-white/5 flex flex-col z-[410] overflow-hidden drop-shadow-2xl">
+      <div className="w-full lg:w-[420px] shrink-0 h-[50vh] lg:h-full bg-[#172122]/95 backdrop-blur-2xl border-t lg:border-t-0 lg:border-l border-white/5 flex flex-col z-[410] overflow-hidden drop-shadow-2xl">
         {/* Module Header */}
         <div className="px-6 py-6 border-b border-white/5 bg-gradient-to-b from-white/5 to-transparent">
           <div className="flex items-center justify-between mb-2">
@@ -363,96 +364,98 @@ export default function ModuloTelemetria() {
         </div>
 
         {/* POI Form */}
-        <div className="p-6 border-b border-white/5 bg-black/20">
-          <h3 className="text-[11px] uppercase tracking-widest text-ferppa-gold mb-4 font-bold flex items-center gap-2">
-            <Plus className="w-3.5 h-3.5" /> NOVO MARCO (POI)
-          </h3>
-          <form className="space-y-4" onSubmit={handleAddGeofence}>
-            <div>
-              <label className="block text-[10px] font-mono text-gray-400 mb-1.5 uppercase">
-                Nome do Local
-              </label>
-              <input
-                type="text"
-                required
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                className="w-full bg-[#1e2a2c] border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors"
-                placeholder="Ex: Porto de Areia Boreal 02"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
+        {isAdmin && (
+          <div className="p-6 border-b border-white/5 bg-black/20 shrink-0">
+            <h3 className="text-[11px] uppercase tracking-widest text-ferppa-gold mb-4 font-bold flex items-center gap-2">
+              <Plus className="w-3.5 h-3.5" /> NOVO MARCO (POI)
+            </h3>
+            <form className="space-y-4" onSubmit={handleAddGeofence}>
               <div>
                 <label className="block text-[10px] font-mono text-gray-400 mb-1.5 uppercase">
-                  Tipo de Operação
+                  Nome do Local
                 </label>
-                <select
-                  value={formType}
-                  onChange={(e) => setFormType(e.target.value as GeofenceType)}
+                <input
+                  type="text"
+                  required
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
                   className="w-full bg-[#1e2a2c] border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors"
-                >
-                  <option value="EXTRACTION">Área Extração</option>
-                  <option value="DELIVERY">Ponto Entrega</option>
-                  <option value="GAS_STATION">Posto Abastecimento</option>
-                  <option value="BASE">Base/Pátio</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-[10px] font-mono text-gray-400 mb-1.5 uppercase">
-                  Raio (Metros)
-                </label>
-                <input
-                  type="number"
-                  required
-                  min="50"
-                  step="10"
-                  value={formRadius}
-                  onChange={(e) => setFormRadius(e.target.value)}
-                  className="w-full bg-[#1e2a2c] border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors"
+                  placeholder="Ex: Porto de Areia Boreal 02"
                 />
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[10px] font-mono text-gray-400 mb-1.5 uppercase">
-                  Latitude (Y)
-                </label>
-                <input
-                  type="number"
-                  required
-                  step="any"
-                  value={formLat}
-                  onChange={(e) => setFormLat(e.target.value)}
-                  className="w-full bg-[#1e2a2c] border border-white/10 rounded px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-ferppa-gold transition-colors"
-                  placeholder="-23.5505"
-                />
+  
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-mono text-gray-400 mb-1.5 uppercase">
+                    Tipo de Operação
+                  </label>
+                  <select
+                    value={formType}
+                    onChange={(e) => setFormType(e.target.value as GeofenceType)}
+                    className="w-full bg-[#1e2a2c] border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors"
+                  >
+                    <option value="EXTRACTION">Área Extração</option>
+                    <option value="DELIVERY">Ponto Entrega</option>
+                    <option value="GAS_STATION">Posto Abastecimento</option>
+                    <option value="BASE">Base/Pátio</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-mono text-gray-400 mb-1.5 uppercase">
+                    Raio (Metros)
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="50"
+                    step="10"
+                    value={formRadius}
+                    onChange={(e) => setFormRadius(e.target.value)}
+                    className="w-full bg-[#1e2a2c] border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-mono text-gray-400 mb-1.5 uppercase">
-                  Longitude (X)
-                </label>
-                <input
-                  type="number"
-                  required
-                  step="any"
-                  value={formLng}
-                  onChange={(e) => setFormLng(e.target.value)}
-                  className="w-full bg-[#1e2a2c] border border-white/10 rounded px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-ferppa-gold transition-colors"
-                  placeholder="-46.6333"
-                />
+  
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-mono text-gray-400 mb-1.5 uppercase">
+                    Latitude (Y)
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    step="any"
+                    value={formLat}
+                    onChange={(e) => setFormLat(e.target.value)}
+                    className="w-full bg-[#1e2a2c] border border-white/10 rounded px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-ferppa-gold transition-colors"
+                    placeholder="-23.5505"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-mono text-gray-400 mb-1.5 uppercase">
+                    Longitude (X)
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    step="any"
+                    value={formLng}
+                    onChange={(e) => setFormLng(e.target.value)}
+                    className="w-full bg-[#1e2a2c] border border-white/10 rounded px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-ferppa-gold transition-colors"
+                    placeholder="-46.6333"
+                  />
+                </div>
               </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-2.5 bg-ferppa-gold hover:bg-ferppa-gold-hover text-ferppa-dark font-bold text-xs uppercase tracking-widest rounded transition-colors mt-2"
-            >
-              Catalogar Nova Cerca
-            </button>
-          </form>
-        </div>
+  
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-ferppa-gold hover:bg-ferppa-gold-hover text-ferppa-dark font-bold text-xs uppercase tracking-widest rounded transition-colors mt-2"
+              >
+                Catalogar Nova Cerca
+              </button>
+            </form>
+          </div>
+        )}
 
         {/* Catalog List */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
@@ -480,16 +483,18 @@ export default function ModuloTelemetria() {
                       {geo.type}
                     </div>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toast.info('Funcionalidade de edição em desenvolvimento.');
-                    }}
-                    className="p-1.5 text-white/30 hover:text-ferppa-gold transition-colors rounded hover:bg-white/10"
-                    title="Editar Geofence"
-                  >
-                    <Edit className="w-3.5 h-3.5" />
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toast.info('Funcionalidade de edição em desenvolvimento.');
+                      }}
+                      className="p-1.5 text-white/30 hover:text-ferppa-gold transition-colors rounded hover:bg-white/10"
+                      title="Editar Geofence"
+                    >
+                      <Edit className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex justify-between items-end mt-3 border-t border-white/5 pt-2">

@@ -12,7 +12,8 @@ import { useFerppaStore } from '../store';
 type PeriodFilterType = 'HOJE' | '7_DIAS' | '15_DIAS' | 'MES_ATUAL' | 'TODOS';
 
 export default function ModuloLogistica() {
-  const { fleet, trips, addTrip, deleteTrip } = useFerppaStore();
+  const { fleet, trips, addTrip, deleteTrip, userProfile } = useFerppaStore();
+  const isAdmin = userProfile?.role === 'ADMIN';
   // Form State
   const [truckId, setTruckId] = useState('');
   const [tripNumber, setTripNumber] = useState('');
@@ -453,8 +454,8 @@ export default function ModuloLogistica() {
             </div>
 
             {/* Trips list table */}
-            <div className="overflow-x-auto w-full">
-              <table className="w-full text-left border-collapse text-[13px]">
+            <div className="overflow-x-auto w-full -mx-5 px-5 md:mx-0 md:px-0 minimal-scrollbar">
+              <table className="w-full text-left border-collapse text-[13px] min-w-[800px]">
                 <thead>
                   <tr>
                     <th className="p-3 border-b border-white/10 uppercase text-[10px] opacity-50">Nº Ticket</th>
@@ -505,15 +506,17 @@ export default function ModuloLogistica() {
                             R$ {trip.total_price.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                           </td>
                           <td className="p-3 text-center">
-                            <button
-                              onClick={() => {
-                                toast.info('Funcionalidade de edição em desenvolvimento.');
-                              }}
-                              className="p-1 text-gray-500 hover:text-ferppa-gold transition-colors"
-                              title="Editar Ticket"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
+                            {isAdmin && (
+                              <button
+                                onClick={() => {
+                                  toast.info('Funcionalidade de edição em desenvolvimento.');
+                                }}
+                                className="p-1 text-gray-500 hover:text-ferppa-gold transition-colors"
+                                title="Editar Ticket"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );

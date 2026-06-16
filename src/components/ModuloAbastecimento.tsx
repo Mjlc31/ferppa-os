@@ -12,7 +12,8 @@ import autoTable from 'jspdf-autotable';
 import { useFerppaStore } from '../store';
 
 export default function ModuloAbastecimento() {
-  const { fleet, fuelLogs, addFuelLog, deleteFuelLog } = useFerppaStore();
+  const { fleet, fuelLogs, addFuelLog, deleteFuelLog, userProfile } = useFerppaStore();
+  const isAdmin = userProfile?.role === 'ADMIN';
   // Form State
   const [fleetId, setFleetId] = useState('');
   const [controlNumber, setControlNumber] = useState('');
@@ -476,8 +477,8 @@ export default function ModuloAbastecimento() {
         </div>
 
         {/* List Table */}
-        <div className="overflow-x-auto w-full">
-          <table className="w-full text-left border-collapse text-[13px]">
+        <div className="overflow-x-auto w-full -mx-5 px-5 md:mx-0 md:px-0 minimal-scrollbar">
+          <table className="w-full text-left border-collapse text-[13px] min-w-[800px]">
             <thead>
               <tr>
                 <th className="p-3 border-b border-white/10 uppercase text-[10px] opacity-50">Nº Controle</th>
@@ -551,15 +552,17 @@ export default function ModuloAbastecimento() {
                         </button>
                       </td>
                       <td className="p-3 text-center">
-                        <button
-                          onClick={() => {
-                            toast.info('Funcionalidade de edição em desenvolvimento.');
-                          }}
-                          className="p-1 text-gray-500 hover:text-ferppa-gold transition-colors"
-                          title="Editar Registro"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => {
+                              toast.info('Funcionalidade de edição em desenvolvimento.');
+                            }}
+                            className="p-1 text-gray-500 hover:text-ferppa-gold transition-colors"
+                            title="Editar Registro"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

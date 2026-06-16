@@ -9,8 +9,9 @@ import { useFerppaStore } from '../store';
 type PeriodFilter = 'DIARIO' | '15_DIAS' | 'MENSAL' | 'ANUAL';
 
 export default function ModuloFinanceiro() {
-  const { financeTransactions: transactions, fuelLogs, trips, addFinanceTransaction: addTransaction, deleteFinanceTransaction: deleteTransaction } = useFerppaStore();
-  const [activeTab, setActiveTab] = useState<'dre' | 'recebimentos' | 'despesas'>('recebimentos');
+  const { financeTransactions: transactions, fuelLogs, trips, addFinanceTransaction: addTransaction, deleteFinanceTransaction: deleteTransaction, userProfile } = useFerppaStore();
+  const isAdmin = userProfile?.role === 'ADMIN';
+  const [activeTab, setActiveTab] = useState<'dre' | 'recebimentos' | 'despesas'>(isAdmin ? 'recebimentos' : 'despesas');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('MENSAL');
   const [showForm, setShowForm] = useState(false);
 
@@ -135,18 +136,20 @@ export default function ModuloFinanceiro() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-            <DollarSign className="w-6 h-6 text-ferppa-gold" /> MÓDULO FINANCEIRO
+            <DollarSign className="w-6 h-6 text-ferppa-gold" /> {isAdmin ? 'MÓDULO FINANCEIRO' : 'DESPESAS & CONTAS'}
           </h1>
-          <p className="text-gray-400 text-sm tracking-wide mt-1">Gestão de caixa, DRE e controle geral.</p>
+          <p className="text-gray-400 text-sm tracking-wide mt-1">{isAdmin ? 'Gestão de caixa, DRE e controle geral.' : 'Registro de gastos e custos operacionais.'}</p>
         </div>
 
         <div className="flex gap-2">
-          <button
-            onClick={exportPDF}
-            className="border border-white/20 hover:bg-white/5 text-white font-bold px-4 py-2 rounded shadow flex items-center gap-2 transition-transform active:scale-95 text-xs tracking-wider"
-          >
-            <Download className="w-4 h-4" /> EXPORTAR PDF
-          </button>
+          {isAdmin && (
+            <button
+              onClick={exportPDF}
+              className="border border-white/20 hover:bg-white/5 text-white font-bold px-4 py-2 rounded shadow flex items-center gap-2 transition-transform active:scale-95 text-xs tracking-wider"
+            >
+              <Download className="w-4 h-4" /> EXPORTAR PDF
+            </button>
+          )}
           <button
             onClick={() => {
               setTxType(activeTab === 'recebimentos' ? 'RECEBIMENTO' : 'DESPESA');
@@ -167,7 +170,7 @@ export default function ModuloFinanceiro() {
               <label className="text-xs text-ferppa-gold font-bold block">Tipo</label>
               <select value={txType} onChange={e => setTxType(e.target.value as TransactionType)} className="w-full bg-ferppa-dark border border-ferppa-gold/50 rounded px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite font-bold">
                 <option value="DESPESA">Saída (Despesa)</option>
-                <option value="RECEBIMENTO">Entrada (Receita)</option>
+                {isAdmin && <option value="RECEBIMENTO">Entrada (Receita)</option>}
               </select>
             </div>
             <div className="space-y-1">
@@ -224,17 +227,19 @@ export default function ModuloFinanceiro() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-white/10 overflow-x-auto minimal-scrollbar">
-        <button onClick={() => setActiveTab('recebimentos')} className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-colors border-b-2 ${activeTab === 'recebimentos' ? 'border-ferppa-gold text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>
-          <ArrowUpCircle className="w-4 h-4" /> Recebimentos / Faturamento (Adm)
-        </button>
-        <button onClick={() => setActiveTab('despesas')} className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-colors border-b-2 ${activeTab === 'despesas' ? 'border-ferppa-gold text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>
-          <ArrowDownCircle className="w-4 h-4" /> Despesas & Contas a Pagar
-        </button>
-        <button onClick={() => setActiveTab('dre')} className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-colors border-b-2 ${activeTab === 'dre' ? 'border-ferppa-gold text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>
-          <BarChart3 className="w-4 h-4" /> Visão DRE
-        </button>
-      </div>
+      {isAdmin && (
+        <div className="flex gap-2 border-b border-white/10 overflow-x-auto minimal-scrollbar">
+          <button onClick={() => setActiveTab('recebimentos')} className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-colors border-b-2 ${activeTab === 'recebimentos' ? 'border-ferppa-gold text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>
+            <ArrowUpCircle className="w-4 h-4" /> Recebimentos / Faturamento (Adm)
+          </button>
+          <button onClick={() => setActiveTab('despesas')} className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-colors border-b-2 ${activeTab === 'despesas' ? 'border-ferppa-gold text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>
+            <ArrowDownCircle className="w-4 h-4" /> Despesas & Contas a Pagar
+          </button>
+          <button onClick={() => setActiveTab('dre')} className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-colors border-b-2 ${activeTab === 'dre' ? 'border-ferppa-gold text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>
+            <BarChart3 className="w-4 h-4" /> Visão DRE
+          </button>
+        </div>
+      )}
 
       <div className="flex justify-start">
         <div className="flex bg-white/5 p-1 rounded-lg border border-white/10">

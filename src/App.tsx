@@ -24,7 +24,7 @@ const UserProfile = lazy(() => import("./components/UserProfile"));
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  const { activeTab, loading, fetchData, session, setSession, setUserProfile } = useFerppaStore();
+  const { activeTab, setActiveTab, loading, fetchData, session, setSession, setUserProfile, userProfile } = useFerppaStore();
 
   useEffect(() => {
     // Check active session
@@ -98,6 +98,16 @@ export default function App() {
 
   // Component dispatcher according to currently active tab
   const renderContent = () => {
+    // RBAC Route Protection
+    if (userProfile?.role !== 'ADMIN' && ['dashboard', 'fleet', 'crm'].includes(activeTab)) {
+      setTimeout(() => setActiveTab('abastecimento'), 0);
+      return (
+        <div className="flex flex-1 items-center justify-center p-10">
+          <Loader2 className="w-8 h-8 text-ferppa-gold animate-spin" />
+        </div>
+      );
+    }
+
     switch (activeTab) {
       case "dashboard":
         return <CommandCenter />;
