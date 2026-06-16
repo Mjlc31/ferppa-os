@@ -44,13 +44,26 @@ export default function Login() {
         transition={{ duration: 0.6, ease: "easeOut" }}
         className="w-full max-w-md relative z-10"
       >
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-[#182324] border border-[#2a3a3d] shadow-[0_0_20px_rgba(183,145,82,0.15)] mb-6">
-            <Lock className="w-8 h-8 text-ferppa-gold" />
+        <div className="text-center mb-8 flex flex-col items-center">
+          <img 
+            src="/logo.png" 
+            alt="Ferppa Logo" 
+            className="w-auto h-20 mb-6 drop-shadow-[0_0_15px_rgba(183,145,82,0.3)]"
+            onError={(e) => {
+              // Fallback para o ícone antigo caso a logo.png não seja encontrada
+              e.currentTarget.style.display = 'none';
+              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+            }}
+          />
+          {/* Fallback caso a logo não exista */}
+          <div className="hidden">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-[#182324] border border-[#2a3a3d] shadow-[0_0_20px_rgba(183,145,82,0.15)] mb-6">
+              <Lock className="w-8 h-8 text-ferppa-gold" />
+            </div>
+            <h1 className="text-3xl font-black uppercase tracking-widest text-white mb-2">
+              FERPPA <span className="text-ferppa-gold">OS</span>
+            </h1>
           </div>
-          <h1 className="text-3xl font-black uppercase tracking-widest text-white mb-2">
-            FERPPA <span className="text-ferppa-gold">OS</span>
-          </h1>
           <p className="text-xs font-mono uppercase tracking-widest text-gray-500">
             Acesso Restrito ao Sistema Operacional
           </p>

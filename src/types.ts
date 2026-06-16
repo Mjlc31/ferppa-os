@@ -98,8 +98,30 @@ export interface Lead {
   status: LeadStatus;
   notes?: string;
   source?: string;
+  estimated_value?: number;
+  expected_close_date?: string; // YYYY-MM-DD
   created_at: string;
   updated_at: string;
+}
+
+export type LeadTaskType = 'CALL' | 'EMAIL' | 'MEETING' | 'TODO';
+
+export interface LeadTask {
+  id: string;
+  lead_id: string;
+  title: string;
+  type: LeadTaskType;
+  due_date: string; // ISO date string
+  completed: boolean;
+  created_at: string;
+}
+
+export interface LeadNote {
+  id: string;
+  lead_id: string;
+  content: string;
+  created_at: string;
+  author_email?: string;
 }
 
 export type UserRole = 'ADMIN' | 'USER';

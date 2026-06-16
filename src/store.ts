@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from './lib/supabase';
-import { FleetItem, FuelLogItem, TripItem, Geofence, FinanceTransaction, Lead, LeadStatus, UserProfile } from './types';
+import { FleetItem, FuelLogItem, TripItem, Geofence, FinanceTransaction, Lead, LeadStatus, UserProfile, LeadTask, LeadNote } from './types';
 
 interface FerppaState {
   fleet: FleetItem[];
@@ -9,6 +9,8 @@ interface FerppaState {
   geofences: Geofence[];
   financeTransactions: FinanceTransaction[];
   leads: Lead[];
+  leadTasks: LeadTask[];
+  leadNotes: LeadNote[];
   activeTab: string;
   loading: boolean;
   setActiveTab: (tab: string) => void;
@@ -24,8 +26,14 @@ interface FerppaState {
   addFinanceTransaction: (transaction: Omit<FinanceTransaction, 'id'>) => Promise<FinanceTransaction | null>;
   deleteFinanceTransaction: (id: string) => Promise<void>;
   addLead: (lead: Omit<Lead, 'id' | 'created_at' | 'updated_at'>) => Promise<Lead | null>;
+  updateLead: (id: string, updates: Partial<Lead>) => Promise<void>;
   updateLeadStatus: (id: string, status: LeadStatus) => Promise<void>;
   deleteLead: (id: string) => Promise<void>;
+  addLeadTask: (task: Omit<LeadTask, 'id' | 'created_at'>) => void;
+  updateLeadTask: (id: string, updates: Partial<LeadTask>) => void;
+  deleteLeadTask: (id: string) => void;
+  addLeadNote: (note: Omit<LeadNote, 'id' | 'created_at'>) => void;
+  deleteLeadNote: (id: string) => void;
   resetToDefaults: () => void;
   getWeeklyLimitsExceeded: () => Array<{
     fleetId: string;
@@ -50,6 +58,8 @@ export const useFerppaStore = create<FerppaState>((set, get) => ({
   geofences: [],
   financeTransactions: [],
   leads: [],
+  leadTasks: [],
+  leadNotes: [],
   activeTab: 'dashboard',
   loading: true,
   session: null,
@@ -200,16 +210,50 @@ export const useFerppaStore = create<FerppaState>((set, get) => ({
   },
 
   updateLeadStatus: async (id, status) => {
-    // Optimistic UI Update
     set((state) => ({
       leads: state.leads.map(lead => lead.id === id ? { ...lead, status, updated_at: new Date().toISOString() } : lead)
     }));
     await supabase.from('leads').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
   },
 
+  updateLead: async (id, updates) => {
+    set((state) => ({
+      leads: state.leads.map(lead => lead.id === id ? { ...lead, ...updates, updated_at: new Date().toISOString() } : lead)
+    }));
+    await supabase.from('leads').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id);
+  },
+
   deleteLead: async (id) => {
-    set((state) => ({ leads: state.leads.filter(l => l.id !== id) }));
+    set((state) => ({ 
+      leads: state.leads.filter(l => l.id !== id),
+      leadTasks: state.leadTasks.filter(t => t.lead_id !== id),
+      leadNotes: state.leadNotes.filter(n => n.lead_id !== id)
+    }));
     await supabase.from('leads').delete().eq('id', id);
+  },
+
+  addLeadTask: (task) => {
+    const newTask = { ...task, id: crypto.randomUUID(), created_at: new Date().toISOString() } as LeadTask;
+    set((state) => ({ leadTasks: [newTask, ...state.leadTasks] }));
+  },
+
+  updateLeadTask: (id, updates) => {
+    set((state) => ({
+      leadTasks: state.leadTasks.map(t => t.id === id ? { ...t, ...updates } : t)
+    }));
+  },
+
+  deleteLeadTask: (id) => {
+    set((state) => ({ leadTasks: state.leadTasks.filter(t => t.id !== id) }));
+  },
+
+  addLeadNote: (note) => {
+    const newNote = { ...note, id: crypto.randomUUID(), created_at: new Date().toISOString() } as LeadNote;
+    set((state) => ({ leadNotes: [newNote, ...state.leadNotes] }));
+  },
+
+  deleteLeadNote: (id) => {
+    set((state) => ({ leadNotes: state.leadNotes.filter(n => n.id !== id) }));
   },
 
   resetToDefaults: () => {

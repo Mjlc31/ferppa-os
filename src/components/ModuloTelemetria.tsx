@@ -94,6 +94,14 @@ export default function ModuloTelemetria() {
     lng: number;
   } | null>({ lat: CENTER_LAT, lng: CENTER_LNG });
 
+  // Focus map on first geofence when data loads
+  useEffect(() => {
+    if (geofences.length > 0) {
+      const firstGeo = geofences.find(g => g.type === 'EXTRACTION') || geofences[0];
+      setFlyToCoords({ lat: firstGeo.latitude, lng: firstGeo.longitude });
+    }
+  }, [geofences.length]);
+
   // Simulated truck positions
   const trucksOrigin = fleet.filter((f) => f.type === FleetType.CAMINHAO);
   const [truckPositions, setTruckPositions] = useState<

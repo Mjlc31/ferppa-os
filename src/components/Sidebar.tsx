@@ -61,15 +61,28 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
             <X className="w-5 h-5" />
           </button>
           
-          {/* CSS-based Brand Logo replacing the missing missing Marca-01.png */}
+          {/* Brand Logo */}
           <div className="flex items-center gap-3">
-            <div className="relative w-10 h-10 bg-gradient-to-br from-[#1a2325] to-[#0f1516] rounded-xl border border-[#2a3a3d] flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(183,145,82,0.15)] overflow-hidden">
-              <div className="absolute inset-x-0 bottom-0 top-3 bg-gradient-to-t from-ferppa-gold/20 to-transparent" style={{ clipPath: 'polygon(50% 0%, 100% 100%, 0% 100%)' }}></div>
-              <span className="text-ferppa-gold font-black tracking-tighter text-lg font-display drop-shadow relative z-10">F</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="font-extrabold tracking-widest text-[16px] leading-none">FERPPA <span className="text-ferppa-gold">OS</span></span>
-              <span className="text-[8px] uppercase tracking-[0.2em] text-gray-500 font-bold mt-1">Mineração & Log.</span>
+            <img 
+              src="/logo.png" 
+              alt="Ferppa Logo" 
+              className="w-auto h-12 drop-shadow-[0_0_10px_rgba(183,145,82,0.15)]"
+              onError={(e) => {
+                // Fallback to CSS logo if logo.png is missing
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+              }}
+            />
+            {/* CSS Fallback */}
+            <div className="hidden flex items-center gap-3 w-full">
+              <div className="relative w-10 h-10 bg-gradient-to-br from-[#1a2325] to-[#0f1516] rounded-xl border border-[#2a3a3d] flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(183,145,82,0.15)] overflow-hidden">
+                <div className="absolute inset-x-0 bottom-0 top-3 bg-gradient-to-t from-ferppa-gold/20 to-transparent" style={{ clipPath: 'polygon(50% 0%, 100% 100%, 0% 100%)' }}></div>
+                <span className="text-ferppa-gold font-black tracking-tighter text-lg font-display drop-shadow relative z-10">F</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="font-extrabold tracking-widest text-[16px] leading-none text-white">FERPPA <span className="text-ferppa-gold">OS</span></span>
+                <span className="text-[8px] uppercase tracking-[0.2em] text-gray-500 font-bold mt-1">Mineração & Log.</span>
+              </div>
             </div>
           </div>
         </div>
