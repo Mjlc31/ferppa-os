@@ -1,0 +1,6 @@
+{
+  "name": "Ferppa OS",
+  "description": "Sistema Operacional Interno da Ferppa Mineração para logística, abastecimento e frota.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
