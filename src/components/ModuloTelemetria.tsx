@@ -102,38 +102,80 @@ export default function ModuloTelemetria() {
     }
   }, [geofences.length]);
 
-  // Simulated truck positions
-  const trucksOrigin = fleet.filter((f) => f.type === FleetType.CAMINHAO);
-  const [truckPositions, setTruckPositions] = useState<
-    { id: string; plate: string; lat: number; lng: number }[]
-  >(() => {
-    // Initial random spread around origin
-    return trucksOrigin.map((truck, idx) => ({
-      id: truck.id,
-      plate: truck.plate,
-      lat: CENTER_LAT + (Math.random() - 0.5) * 0.05 + idx * 0.01,
-      lng: CENTER_LNG + (Math.random() - 0.5) * 0.05 + idx * 0.01,
-    }));
-  });
+  // Traccar live data state
+  interface TraccarDevice {
+    id: number;
+    name: string;
+    uniqueId: string;
+    status: string;
+    lastUpdate: string;
+  }
 
-  // Simulate movement
+  interface TraccarPosition {
+    id: number;
+    deviceId: number;
+    latitude: number;
+    longitude: number;
+    speed: number;
+    attributes: {
+      ignition?: boolean;
+      batteryLevel?: number;
+      distance?: number;
+      totalDistance?: number;
+      motion?: boolean;
+      [key: string]: any;
+    };
+    serverTime: string;
+    deviceTime: string;
+    address?: string;
+  }
+
+  const [devices, setDevices] = useState<TraccarDevice[]>([]);
+  const [positions, setPositions] = useState<TraccarPosition[]>([]);
+  const [initialCenterSet, setInitialCenterSet] = useState(false);
+
   useEffect(() => {
-    const interval = setInterval(() => {
-      setTruckPositions((prev) =>
-        prev.map((t) => {
-          // move slighly vector
-          const latMove = (Math.random() - 0.5) * 0.0005;
-          const lngMove = (Math.random() - 0.5) * 0.0005;
-          return {
-            ...t,
-            lat: t.lat + latMove,
-            lng: t.lng + lngMove,
-          };
-        }),
-      );
-    }, 5000);
+    const fetchProrracData = async () => {
+      const url = import.meta.env.VITE_PRORRAC_API_URL;
+      const user = import.meta.env.VITE_PRORRAC_USERNAME;
+      const pass = import.meta.env.VITE_PRORRAC_PASSWORD;
+
+      if (!url || !user || !pass) {
+        console.warn('Faltam variáveis de ambiente do Prorrac');
+        return;
+      }
+
+      const headers = new Headers();
+      headers.set('Authorization', 'Basic ' + btoa(user + ':' + pass));
+
+      try {
+        // Fetch devices
+        const devicesRes = await fetch(`${url}/devices`, { headers });
+        if (devicesRes.ok) {
+          const devs = await devicesRes.json();
+          setDevices(devs);
+        }
+
+        // Fetch positions
+        const positionsRes = await fetch(`${url}/positions`, { headers });
+        if (positionsRes.ok) {
+          const pos = await positionsRes.json();
+          setPositions(pos);
+          
+          if (!initialCenterSet && pos.length > 0) {
+            setFlyToCoords({ lat: pos[0].latitude, lng: pos[0].longitude });
+            setInitialCenterSet(true);
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao buscar dados do Prorrac:', err);
+      }
+    };
+
+    fetchProrracData();
+    const interval = setInterval(fetchProrracData, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [initialCenterSet]);
 
   const handleAddGeofence = (e: React.FormEvent) => {
     e.preventDefault();
@@ -234,29 +276,66 @@ export default function ModuloTelemetria() {
             </React.Fragment>
           ))}
 
-          {/* Render Trucks (Live telemetry simulation) */}
-          {truckPositions.map((truck) => (
-            <Marker
-              key={truck.id}
-              position={[truck.lat, truck.lng]}
-              icon={createTruckIcon(truck.plate)}
-            >
-              <Popup>
-                <div className="bg-[#172122] text-white p-2 rounded border border-white/10 min-w-32">
-                  <div className="text-[11px] uppercase opacity-50 mb-1">
-                    Caminhão
+          {/* Render Trucks (Live telemetry via Prorrac) */}
+          {positions.map((pos) => {
+            const device = devices.find(d => d.id === pos.deviceId);
+            const plate = device ? device.name : `ID: ${pos.deviceId}`;
+            const speedKmh = (pos.speed * 1.852).toFixed(1); // Traccar returns speed in knots
+            const isIgnitionOn = pos.attributes.ignition;
+
+            return (
+              <Marker
+                key={pos.id}
+                position={[pos.latitude, pos.longitude]}
+                icon={createTruckIcon(plate)}
+              >
+                <Popup className="custom-popup border-0">
+                  <div className="bg-[#172122] text-white p-3 rounded shadow-xl border border-white/10 min-w-48 font-sans">
+                    <div className="flex justify-between items-center mb-1 border-b border-white/10 pb-1.5">
+                      <div className="text-[10px] uppercase font-bold text-gray-400 tracking-widest">
+                        Caminhão
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[9px] font-mono">
+                        {device?.status === 'online' ? (
+                          <span className="animate-pulse w-2 h-2 rounded-full bg-emerald-500 inline-block shadow-[0_0_5px_#10b981]" title="Online"></span>
+                        ) : (
+                          <span className="w-2 h-2 rounded-full bg-red-500 inline-block shadow-[0_0_5px_#ef4444]" title="Offline"></span>
+                        )}
+                        <span className="uppercase text-white/50">{device?.status || 'desconhecido'}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="font-bold text-ferppa-gold text-lg mb-2">
+                      {plate}
+                    </div>
+                    
+                    <div className="space-y-1 text-[10px] font-mono bg-black/40 p-2 rounded border border-white/5">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Velocidade:</span>
+                        <span className="font-bold text-white">{speedKmh} km/h</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Ignição:</span>
+                        <span className={isIgnitionOn ? 'text-emerald-500 font-bold' : 'text-red-500 font-bold'}>
+                          {isIgnitionOn ? 'LIGADA' : 'DESLIGADA'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between mt-1 pt-1 border-t border-white/10">
+                        <span className="text-gray-400">Sincronizado:</span>
+                        <span className="text-gray-300">{new Date(pos.deviceTime).toLocaleTimeString('pt-BR')}</span>
+                      </div>
+                    </div>
+                    
+                    {pos.address && (
+                      <div className="text-[9px] mt-2 text-white/50 leading-tight">
+                        {pos.address}
+                      </div>
+                    )}
                   </div>
-                  <div className="font-mono font-bold text-ferppa-gold">
-                    {truck.plate}
-                  </div>
-                  <div className="text-[10px] mt-2 font-mono flex items-center gap-2">
-                    <span className="animate-pulse w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
-                    Sinal Prorrac OK
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-          ))}
+                </Popup>
+              </Marker>
+            );
+          })}
         </MapContainer>
 
         {/* Radar Overlay Effect elements */}
