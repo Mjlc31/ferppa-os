@@ -60,10 +60,13 @@ export default function App() {
         .single();
         
       if (data) {
+        if (data.email === 'fp.admin@gmail.com') data.role = 'ADMIN';
         setUserProfile(data);
       } else {
         // Fallback for first login if trigger hasn't fired yet
-        setUserProfile({ id: userId, email: session?.user?.email || '', role: 'USER' });
+        const email = session?.user?.email || '';
+        const role = email === 'fp.admin@gmail.com' ? 'ADMIN' : 'USER';
+        setUserProfile({ id: userId, email, role });
       }
     } catch (err) {
       console.error("Error fetching profile", err);
