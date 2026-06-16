@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from './lib/supabase';
-import { FleetItem, FuelLogItem, TripItem, Geofence, FinanceTransaction, Lead, LeadStatus } from './types';
+import { FleetItem, FuelLogItem, TripItem, Geofence, FinanceTransaction, Lead, LeadStatus, UserProfile } from './types';
 
 interface FerppaState {
   fleet: FleetItem[];
@@ -36,6 +36,11 @@ interface FerppaState {
     limit: number;
     excess: number;
   }>;
+  session: any | null;
+  userProfile: UserProfile | null;
+  setSession: (session: any | null) => void;
+  setUserProfile: (profile: UserProfile | null) => void;
+  signOut: () => Promise<void>;
 }
 
 export const useFerppaStore = create<FerppaState>((set, get) => ({
@@ -47,6 +52,16 @@ export const useFerppaStore = create<FerppaState>((set, get) => ({
   leads: [],
   activeTab: 'dashboard',
   loading: true,
+  session: null,
+  userProfile: null,
+
+  setSession: (session) => set({ session }),
+  setUserProfile: (profile) => set({ userProfile: profile }),
+  
+  signOut: async () => {
+    await supabase.auth.signOut();
+    set({ session: null, userProfile: null });
+  },
 
   setActiveTab: (tab: string) => set({ activeTab: tab }),
 

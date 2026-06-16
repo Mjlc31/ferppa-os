@@ -12,13 +12,13 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
-  const { activeTab, setActiveTab, resetToDefaults, getWeeklyLimitsExceeded } = useFerppaStore();
+  const { activeTab, setActiveTab, resetToDefaults, getWeeklyLimitsExceeded, userProfile, signOut } = useFerppaStore();
   const exceededCount = getWeeklyLimitsExceeded().length;
   const menuItems = [
     { id: 'dashboard', label: 'COMMAND CENTER', icon: LayoutDashboard, badge: exceededCount > 0 ? exceededCount : undefined },
     { id: 'abastecimento', label: 'ABASTECIMENTO', icon: Fuel },
     { id: 'logistica', label: 'LOGÍSTICA & CUBAGEM', icon: Truck },
-    { id: 'financeiro', label: 'FINANCEIRO DRE', icon: DollarSign },
+    ...(userProfile?.role === 'ADMIN' ? [{ id: 'financeiro', label: 'FINANCEIRO DRE', icon: DollarSign }] : []),
     { id: 'telemetria', label: 'RASTREIO & TELEMETRIA', icon: Database },
     { id: 'fleet', label: 'FROTA & EQUIPAMENTOS', icon: Settings },
     { id: 'crm', label: 'CRM / LEADS', icon: Users },
@@ -112,17 +112,26 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
             }`}
           >
             <div className="w-8 h-8 rounded-full bg-ferppa-dark border border-ferppa-gold/50 flex items-center justify-center text-ferppa-gold text-xs font-bold shrink-0 shadow-[0_0_10px_rgba(183,145,82,0.1)]">
-              JD
+              {userProfile?.email ? userProfile.email.substring(0, 2).toUpperCase() : 'US'}
             </div>
             <div className="text-left flex-1 flex flex-col overflow-hidden">
-              <span className={`text-[11px] font-bold uppercase tracking-widest truncate ${activeTab === 'perfil' ? 'text-ferppa-gold' : 'text-white'}`}>João Diretor</span>
-              <span className="text-[9px] uppercase tracking-widest text-gray-400 truncate">Operações / Perfil</span>
+              <span className={`text-[11px] font-bold uppercase tracking-widest truncate ${activeTab === 'perfil' ? 'text-ferppa-gold' : 'text-white'}`}>
+                {userProfile?.email ? userProfile.email.split('@')[0] : 'Usuário'}
+              </span>
+              <span className="text-[9px] uppercase tracking-widest text-gray-400 truncate">
+                {userProfile?.role || 'Acesso Restrito'}
+              </span>
             </div>
             <Settings className="w-3.5 h-3.5 text-gray-500 group-hover:text-ferppa-gold transition-colors" />
           </button>
 
           <div className="flex justify-between items-center px-2 text-[10px] uppercase tracking-widest text-ferppa-offwhite/50">
-            <span>v2.4.0 INDUSTRIAL</span>
+            <button 
+              onClick={() => signOut()}
+              className="text-red-400 hover:text-red-300 transition-colors tracking-widest"
+            >
+              LOGOUT
+            </button>
             <button
               onClick={handleReset}
               className="hover:text-ferppa-gold transition-colors duration-150"

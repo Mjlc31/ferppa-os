@@ -101,3 +101,11 @@ export interface Lead {
   created_at: string;
   updated_at: string;
 }
+
+export type UserRole = 'ADMIN' | 'USER';
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  role: UserRole;
+}

@@ -7,6 +7,8 @@ import { Suspense, useState, lazy, useEffect } from "react";
 import { useFerppaStore } from "./store";
 import { AnimatePresence, motion } from "motion/react";
 import { Loader2, Menu } from "lucide-react";
+import { supabase } from "./lib/supabase";
+import Login from "./components/Login";
 
 // Lazy Load Componentes para Code Splitting
 const Sidebar = lazy(() => import("./components/Sidebar"));
@@ -21,13 +23,62 @@ const UserProfile = lazy(() => import("./components/UserProfile"));
 
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { activeTab, loading, fetchData } = useFerppaStore();
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const { activeTab, loading, fetchData, session, setSession, setUserProfile } = useFerppaStore();
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    // Check active session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) {
+        fetchUserProfile(session.user.id);
+      } else {
+        setIsCheckingAuth(false);
+      }
+    });
 
-  if (loading) {
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        fetchUserProfile(session.user.id);
+      } else {
+        setUserProfile(null);
+        setIsCheckingAuth(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+        
+      if (data) {
+        setUserProfile(data);
+      } else {
+        // Fallback for first login if trigger hasn't fired yet
+        setUserProfile({ id: userId, email: session?.user?.email || '', role: 'USER' });
+      }
+    } catch (err) {
+      console.error("Error fetching profile", err);
+    } finally {
+      setIsCheckingAuth(false);
+    }
+  };
+
+  useEffect(() => {
+    if (session) {
+      fetchData();
+    }
+  }, [session, fetchData]);
+
+  if (isCheckingAuth || (session && loading)) {
     return (
       <div className="min-h-screen bg-ferppa-dark flex flex-col items-center justify-center gap-3">
         <Loader2 className="w-8 h-8 text-ferppa-gold animate-spin" />
@@ -36,6 +87,10 @@ export default function App() {
         </span>
       </div>
     );
+  }
+
+  if (!session) {
+    return <Login />;
   }
 
   // Component dispatcher according to currently active tab

@@ -10,8 +10,39 @@ import { FleetItem, FuelLogItem, TripItem } from '../types';
 import { useFerppaStore } from '../store';
 
 export default function CommandCenter() {
-  const { fleet, fuelLogs, trips, getWeeklyLimitsExceeded } = useFerppaStore();
+  const { fleet, fuelLogs, trips, getWeeklyLimitsExceeded, financeTransactions } = useFerppaStore();
   // 1. Calculations:
+  // Current calendar month date range for Financial KPIs
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+
+  const monthlyFuelLogs = fuelLogs.filter(log => {
+    const d = new Date(log.date + 'T12:00:00');
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+  const monthlyTrips = trips.filter(trip => {
+    const d = new Date(trip.date + 'T12:00:00');
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+  const monthlyFinance = financeTransactions.filter(f => {
+    const d = new Date(f.date + 'T12:00:00');
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  });
+
+  // Calculate Revenue
+  const tripsRevenue = monthlyTrips.reduce((acc, curr) => acc + curr.total_price, 0);
+  const otherRevenue = monthlyFinance.filter(f => f.type === 'RECEBIMENTO').reduce((acc, curr) => acc + curr.amount, 0);
+  const totalRevenue = tripsRevenue + otherRevenue;
+
+  // Calculate Costs
+  const fuelCosts = monthlyFuelLogs.reduce((acc, curr) => acc + curr.total_value, 0);
+  const otherCosts = monthlyFinance.filter(f => f.type === 'DESPESA').reduce((acc, curr) => acc + curr.amount, 0);
+  const totalCosts = fuelCosts + otherCosts;
+
+  // Net Profit & Margin
+  const netProfit = totalRevenue - totalCosts;
+  const marginPercent = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+
   // Current calendar week date range
   const today = new Date();
   const dayOfWeek = today.getDay();
@@ -284,57 +315,37 @@ export default function CommandCenter() {
           </table>
         </div>
       </div>
+      {/* Indicadores Gerenciais (Replacing Testimonials) */}
       <div className="bg-gradient-to-b from-[#182324] to-[#131b1c] shadow-panel border border-[#1e2a2c] rounded-xl p-6 flex-1 flex flex-col overflow-hidden min-h-[300px] hover:border-[#2a3a3d] transition-colors mt-6">
         <h3 className="text-[11px] uppercase tracking-[0.1em] text-gray-400 font-bold mb-5 flex justify-between items-center">
-          <span>Depoimentos de Clientes - Prova Social</span>
-          <span className="text-ferppa-gold">VERIFIED</span>
+          <span>Indicadores Financeiros & Gerenciais (Mês Atual)</span>
+          <span className="text-ferppa-gold font-mono bg-ferppa-gold/10 px-2 py-1 rounded">REAL-TIME</span>
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-min">
-          {/* Bento Box 1 */}
-          <div className="bg-[#0f1516] border border-[#26383a] rounded-xl p-5 hover:border-ferppa-gold/50 transition-colors flex flex-col gap-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <h4 className="font-bold text-white text-sm">Construtora Alpha S.A.</h4>
-                <p className="text-[10px] uppercase tracking-widest text-gray-500">Eng. Roberto Nogueira</p>
-              </div>
-              <div className="text-ferppa-gold font-bold text-lg">★★★★★</div>
-            </div>
-            <p className="text-sm text-gray-400 italic">"A pontualidade da Ferppa na entrega de brita nos permitiu adiantar o cronograma da obra do viaduto em 2 semanas. Parceiro estratégico indispensável."</p>
-            <div className="mt-auto pt-4 border-t border-[#26383a] text-[10px] text-gray-500 font-mono">
-              Volume operado: 12.000 m³
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 auto-rows-min">
+          {/* KPI 1: Faturamento */}
+          <div className="bg-[#0f1516] border border-[#26383a] rounded-xl p-5 flex flex-col gap-2 hover:border-ferppa-gold/50 transition-colors">
+            <h4 className="text-[10px] uppercase tracking-widest text-gray-500">Faturamento Bruto Mensal</h4>
+            <div className="font-mono text-2xl font-bold text-white"><span className="text-sm text-gray-500 mr-1">R$</span>{totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div className="text-[10px] text-green-400 font-mono mt-auto pt-2 border-t border-[#26383a]">+ Logística e Recebimentos Extras</div>
           </div>
-
-          {/* Bento Box 2 */}
-          <div className="bg-[#0f1516] border border-[#26383a] rounded-xl p-5 hover:border-ferppa-gold/50 transition-colors flex flex-col gap-4 lg:col-span-2">
-            <div className="flex justify-between items-start">
-              <div>
-                <h4 className="font-bold text-white text-sm">Consórcio Vias Metro</h4>
-                <p className="text-[10px] uppercase tracking-widest text-gray-500">Diretoria de Suprimentos</p>
-              </div>
-              <div className="text-ferppa-gold font-bold text-lg">★★★★★</div>
-            </div>
-            <p className="text-sm text-gray-400 italic">"A qualidade do material e a transparência do Ferppa OS com os tickets de medição acabaram com os problemas de conciliação financeira no fim do mês. Excelente qualidade de pedra marroada."</p>
-            <div className="mt-auto pt-4 border-t border-[#26383a] text-[10px] text-gray-500 font-mono">
-              Volume operado: 45.500 m³
-            </div>
+          {/* KPI 2: Custos */}
+          <div className="bg-[#0f1516] border border-[#26383a] rounded-xl p-5 flex flex-col gap-2 hover:border-red-500/50 transition-colors">
+            <h4 className="text-[10px] uppercase tracking-widest text-gray-500">Custos Operacionais Mensal</h4>
+            <div className="font-mono text-2xl font-bold text-red-400"><span className="text-sm text-red-900 mr-1">R$</span>{totalCosts.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div className="text-[10px] text-gray-500 font-mono mt-auto pt-2 border-t border-[#26383a]">Combustível + Despesas DRE</div>
           </div>
-
-          {/* Bento Box 3 */}
-          <div className="bg-[#0f1516] border border-[#26383a] rounded-xl p-5 hover:border-ferppa-gold/50 transition-colors flex flex-col gap-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <h4 className="font-bold text-white text-sm">Engenharia Prisma</h4>
-                <p className="text-[10px] uppercase tracking-widest text-gray-500">Ana Beatriz - Compras</p>
-              </div>
-              <div className="text-ferppa-gold font-bold text-lg">★★★★★</div>
-            </div>
-            <p className="text-sm text-gray-400 italic">"Garantia de fornecimento até nos momentos de pico de demanda. Frota nova e motoristas bem treinados na descarga."</p>
-            <div className="mt-auto pt-4 border-t border-[#26383a] text-[10px] text-gray-500 font-mono">
-              Volume operado: 8.200 m³
-            </div>
+          {/* KPI 3: Lucro Liquido */}
+          <div className="bg-[#0f1516] border border-[#26383a] rounded-xl p-5 flex flex-col gap-2 hover:border-ferppa-gold/50 transition-colors">
+            <h4 className="text-[10px] uppercase tracking-widest text-gray-500">Lucro Líquido Estimado</h4>
+            <div className="font-mono text-2xl font-bold text-ferppa-gold"><span className="text-sm text-ferppa-gold/50 mr-1">R$</span>{netProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div className="text-[10px] text-ferppa-gold/70 font-mono mt-auto pt-2 border-t border-[#26383a]">Baseado em tickets e notas do mês</div>
           </div>
-
+          {/* KPI 4: Margem */}
+          <div className="bg-[#0f1516] border border-[#26383a] rounded-xl p-5 flex flex-col gap-2 hover:border-ferppa-gold/50 transition-colors">
+            <h4 className="text-[10px] uppercase tracking-widest text-gray-500">Margem Operacional</h4>
+            <div className="font-mono text-2xl font-bold text-white">{marginPercent.toFixed(2)}%</div>
+            <div className="text-[10px] text-gray-500 font-mono mt-auto pt-2 border-t border-[#26383a]">Rentabilidade da operação</div>
+          </div>
         </div>
       </div>
     </div>
