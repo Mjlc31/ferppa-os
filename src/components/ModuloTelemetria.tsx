@@ -94,13 +94,7 @@ export default function ModuloTelemetria() {
     lng: number;
   } | null>({ lat: CENTER_LAT, lng: CENTER_LNG });
 
-  // Focus map on first geofence when data loads
-  useEffect(() => {
-    if (geofences.length > 0) {
-      const firstGeo = geofences.find(g => g.type === 'EXTRACTION') || geofences[0];
-      setFlyToCoords({ lat: firstGeo.latitude, lng: firstGeo.longitude });
-    }
-  }, [geofences.length]);
+  // O mapa irá focar nos caminhões através do fetchProrracData
 
   // Traccar live data state
   interface TraccarDevice {
@@ -142,6 +136,9 @@ export default function ModuloTelemetria() {
 
       if (!url || !user || !pass) {
         console.warn('Faltam variáveis de ambiente do Prorrac');
+        toast.error('Variáveis de ambiente ausentes', {
+          description: 'Reinicie o terminal (npm run dev) para carregar as chaves do .env!'
+        });
         return;
       }
 
