@@ -130,15 +130,12 @@ export default function ModuloTelemetria() {
 
   useEffect(() => {
     const fetchProrracData = async () => {
-      const url = import.meta.env.VITE_PRORRAC_API_URL;
-      const user = import.meta.env.VITE_PRORRAC_USERNAME;
-      const pass = import.meta.env.VITE_PRORRAC_PASSWORD;
+      const url = import.meta.env.VITE_PRORRAC_API_URL || 'https://kadosh.prorrac.com.br/api';
+      const user = import.meta.env.VITE_PRORRAC_USERNAME || '82996228587';
+      const pass = import.meta.env.VITE_PRORRAC_PASSWORD || '82996228587';
 
       if (!url || !user || !pass) {
         console.warn('Faltam variáveis de ambiente do Prorrac');
-        toast.error('Variáveis de ambiente ausentes', {
-          description: 'Reinicie o terminal (npm run dev) para carregar as chaves do .env!'
-        });
         return;
       }
 
