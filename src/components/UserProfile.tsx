@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
 import { User, Mail, Shield, Key, Bell, Building2, Smartphone, Save, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
+import { useFerppaStore } from '../store';
+import { supabase } from '../lib/supabase';
 
 export default function UserProfile() {
+  const { userProfile, signOut } = useFerppaStore();
   const [activeSection, setActiveSection] = useState('general');
   const [isSaving, setIsSaving] = useState(false);
+
+  // Password change states
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const handleSave = () => {
     setIsSaving(true);
@@ -15,6 +24,47 @@ export default function UserProfile() {
       });
     }, 800);
   };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      toast.error('As senhas não coincidem.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error('A nova senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      toast.success('Senha alterada com sucesso!');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      toast.error('Erro ao alterar senha', { description: err.message });
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (confirm('Deseja realmente encerrar a sessão?')) {
+      await signOut();
+      toast.success('Sessão encerrada com sucesso.');
+    }
+  };
+
+  // Derive initials for avatar
+  const initials = userProfile?.email
+    ? userProfile.email.substring(0, 2).toUpperCase()
+    : 'US';
+
+  const displayName = userProfile?.email
+    ? userProfile.email.split('@')[0]
+    : 'Usuário';
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -74,23 +124,24 @@ export default function UserProfile() {
               </h2>
               
               <div className="flex items-center gap-6 mb-8">
-                <div className="w-20 h-20 rounded-full border border-ferppa-gold/30 bg-[#172122] flex items-center justify-center text-ferppa-gold text-2xl font-bold shadow-lg">
-                  JD
+                <div className="w-20 h-20 rounded-full border border-ferppa-gold/30 bg-[#172122] flex items-center justify-center text-ferppa-gold text-2xl font-bold shadow-lg shadow-ferppa-gold/10">
+                  {initials}
                 </div>
                 <div>
-                  <button className="text-[11px] uppercase tracking-widest font-bold text-white border border-white/20 bg-white/5 hover:bg-white/10 px-4 py-2 rounded transition-colors mb-2">
-                    Alterar Avatar
-                  </button>
-                  <p className="text-[10px] text-gray-500 font-mono">JPG, GIF ou PNG. Máximo de 2MB.</p>
+                  <div className="text-white font-bold text-lg mb-1">{displayName}</div>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-ferppa-gold/10 border border-ferppa-gold/30 rounded-full text-ferppa-gold text-[10px] font-bold uppercase tracking-widest">
+                    <Shield className="w-3 h-3" />
+                    {userProfile?.role || 'USER'}
+                  </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-mono text-gray-400 uppercase">Nome Completo</label>
+                  <label className="text-[10px] font-mono text-gray-400 uppercase">Nome de Usuário</label>
                   <input
                     type="text"
-                    defaultValue="João Diretor"
+                    defaultValue={displayName}
                     className="w-full bg-[#172122] border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors"
                   />
                 </div>
@@ -98,7 +149,7 @@ export default function UserProfile() {
                   <label className="text-[10px] font-mono text-gray-400 uppercase">Cargo / Função</label>
                   <input
                     type="text"
-                    defaultValue="Gerente de Operações"
+                    defaultValue={userProfile?.role === 'ADMIN' ? 'Administrador do Sistema' : 'Operador de Campo'}
                     className="w-full bg-[#172122] border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors"
                   />
                 </div>
@@ -108,7 +159,7 @@ export default function UserProfile() {
                     <Mail className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
                     <input
                       type="email"
-                      defaultValue="joao@ferppa.com.br"
+                      value={userProfile?.email || ''}
                       disabled
                       className="w-full bg-[#172122]/50 border border-white/10 rounded pl-9 pr-3 py-2 text-sm text-gray-400 focus:outline-none cursor-not-allowed"
                     />
@@ -120,7 +171,8 @@ export default function UserProfile() {
                     <Smartphone className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
                     <input
                       type="text"
-                      defaultValue="(11) 99999-9999"
+                      defaultValue=""
+                      placeholder="(xx) xxxxx-xxxx"
                       className="w-full bg-[#172122] border border-white/10 rounded pl-9 pr-3 py-2 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors"
                     />
                   </div>
@@ -135,39 +187,49 @@ export default function UserProfile() {
                 <Key className="w-3.5 h-3.5" /> ALTERAÇÃO DE SENHA
               </h2>
               
-              <div className="space-y-4 max-w-md">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-mono text-gray-400 uppercase">Senha Atual</label>
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    className="w-full bg-[#172122] border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors"
-                  />
-                </div>
+              <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-mono text-gray-400 uppercase">Nova Senha</label>
                   <input
                     type="password"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    placeholder="Mínimo 6 caracteres"
                     className="w-full bg-[#172122] border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors"
+                    required
                   />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-mono text-gray-400 uppercase">Confirmar Nova Senha</label>
                   <input
                     type="password"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
                     className="w-full bg-[#172122] border border-white/10 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors"
+                    required
                   />
                 </div>
-              </div>
+                <button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="text-[11px] uppercase tracking-widest font-bold text-ferppa-dark bg-ferppa-gold hover:bg-ferppa-gold-hover px-4 py-2.5 rounded transition-colors disabled:opacity-50"
+                >
+                  {isChangingPassword ? 'Alterando...' : 'Alterar Senha'}
+                </button>
+              </form>
 
               <div className="mt-8 pt-6 border-t border-white/10">
-                <h3 className="text-red-400 text-[11px] font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
+                <h3 className="text-amber-400 text-[11px] font-bold uppercase tracking-widest mb-2 flex items-center gap-2">
                   <Shield className="w-3.5 h-3.5" /> Autenticação em Dois Fatores (2FA)
                 </h3>
                 <p className="text-sm text-gray-400 mb-4 max-w-xl">
                   Habilite a autenticação baseada em um aplicativo (como Google Authenticator) ou SMS para garantir a segurança da plataforma Ferppa OS.
                 </p>
-                <button className="text-[11px] uppercase tracking-widest font-bold text-ferppa-dark bg-ferppa-gold hover:bg-ferppa-gold-hover px-4 py-2.5 rounded transition-colors">
+                <button
+                  onClick={() => toast.info('2FA em desenvolvimento. Aguarde próximas versões.')}
+                  className="text-[11px] uppercase tracking-widest font-bold text-white bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded transition-colors border border-white/20"
+                >
                   Configurar 2FA
                 </button>
               </div>
@@ -246,7 +308,10 @@ export default function UserProfile() {
 
           {/* Logout Action at the very bottom of any section */}
           <div className="mt-12 pt-6 border-t border-red-500/20">
-            <button className="flex items-center gap-2 px-4 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors text-[11px] font-bold uppercase tracking-widest">
+            <button
+              onClick={handleSignOut}
+              className="flex items-center gap-2 px-4 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors text-[11px] font-bold uppercase tracking-widest"
+            >
               <LogOut className="w-4 h-4" />
               ENCERRAR SESSÃO NA CONTA
             </button>

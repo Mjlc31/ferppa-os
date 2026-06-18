@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { useFerppaStore } from "../store";
-import { LeadStatus } from "../types";
-import { motion } from "motion/react";
-import { Plus, Search, MoreVertical, Phone, Mail, Clock, CheckCircle2, UserCircle2, Building2, DollarSign, AlertCircle, BarChart3 } from "lucide-react";
+import { Lead, LeadStatus } from "../types";
+import { motion, AnimatePresence } from "motion/react";
+import { Plus, Search, Phone, Mail, Clock, CheckCircle2, Building2, DollarSign, AlertCircle, BarChart3, X } from "lucide-react";
 import LeadDrawer from "./crm/LeadDrawer";
 
 const STATUS_COLUMNS: { id: LeadStatus; label: string; color: string }[] = [
@@ -18,10 +18,21 @@ const formatCurrency = (value: number) => {
 };
 
 export default function ModuloCRM() {
-  const { leads, leadTasks, updateLeadStatus } = useFerppaStore();
+  const { leads, leadTasks, updateLeadStatus, addLead } = useFerppaStore();
   const [searchTerm, setSearchTerm] = useState("");
   const [draggedLead, setDraggedLead] = useState<string | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [showNewLeadForm, setShowNewLeadForm] = useState(false);
+
+  // New lead form state
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newCompany, setNewCompany] = useState('');
+  const [newSource, setNewSource] = useState('Indicação');
+  const [newEstimatedValue, setNewEstimatedValue] = useState('');
+  const [newNotes, setNewNotes] = useState('');
+  const [isCreatingLead, setIsCreatingLead] = useState(false);
 
   const filteredLeads = leads.filter(
     (lead) =>
@@ -47,6 +58,34 @@ export default function ModuloCRM() {
       updateLeadStatus(id, status);
     }
     setDraggedLead(null);
+  };
+
+  const handleCreateLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName || !newPhone) return;
+    setIsCreatingLead(true);
+    try {
+      await addLead({
+        name: newName.trim(),
+        phone: newPhone.trim(),
+        email: newEmail.trim() || undefined,
+        company: newCompany.trim() || undefined,
+        status: 'NOVO',
+        source: newSource,
+        estimated_value: newEstimatedValue ? parseFloat(newEstimatedValue) : undefined,
+        notes: newNotes.trim() || undefined,
+      });
+      // Reset form
+      setNewName('');
+      setNewPhone('');
+      setNewEmail('');
+      setNewCompany('');
+      setNewEstimatedValue('');
+      setNewNotes('');
+      setShowNewLeadForm(false);
+    } finally {
+      setIsCreatingLead(false);
+    }
   };
 
   // Dashboard Stats
@@ -85,7 +124,10 @@ export default function ModuloCRM() {
                 className="bg-[#0a0e0f] border border-[#1e2a2c] rounded-lg pl-9 pr-4 py-2 text-sm text-white focus:outline-none focus:border-ferppa-gold focus:ring-1 focus:ring-ferppa-gold w-full lg:w-64"
               />
             </div>
-            <button className="bg-ferppa-gold text-ferppa-dark px-4 py-2 rounded-lg text-sm font-bold hover:bg-yellow-500 transition-colors flex items-center gap-2 whitespace-nowrap shadow-[0_0_15px_rgba(183,145,82,0.2)]">
+            <button
+              onClick={() => setShowNewLeadForm(true)}
+              className="bg-ferppa-gold text-ferppa-dark px-4 py-2 rounded-lg text-sm font-bold hover:bg-yellow-500 transition-colors flex items-center gap-2 whitespace-nowrap shadow-[0_0_15px_rgba(183,145,82,0.2)]"
+            >
               <Plus className="w-4 h-4" /> Novo Lead
             </button>
           </div>
@@ -206,6 +248,161 @@ export default function ModuloCRM() {
 
       {/* Drawer Overlay */}
       <LeadDrawer leadId={selectedLeadId} onClose={() => setSelectedLeadId(null)} />
+
+      {/* New Lead Modal */}
+      <AnimatePresence>
+        {showNewLeadForm && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40"
+              onClick={() => setShowNewLeadForm(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            >
+              <div className="bg-[#0d1314] border border-[#1e2a2c] rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+                {/* Modal Header */}
+                <div className="p-6 border-b border-[#1e2a2c] flex items-center justify-between bg-gradient-to-br from-[#141d1e] to-[#0d1314]">
+                  <div>
+                    <h2 className="text-lg font-bold text-white">Novo Lead</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">Cadastrar novo prospecto no funil de vendas</p>
+                  </div>
+                  <button
+                    onClick={() => setShowNewLeadForm(false)}
+                    className="text-gray-500 hover:text-white transition-colors p-1.5 hover:bg-white/10 rounded-lg"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Modal Form */}
+                <form onSubmit={handleCreateLead} className="p-6 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-ferppa-gold">Nome Completo *</label>
+                      <input
+                        type="text"
+                        value={newName}
+                        onChange={e => setNewName(e.target.value)}
+                        placeholder="Ex: João da Silva"
+                        required
+                        className="w-full bg-[#172122] border border-[#2a3a3d] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1.5">
+                        <Phone className="w-3 h-3" /> Telefone / WhatsApp *
+                      </label>
+                      <input
+                        type="tel"
+                        value={newPhone}
+                        onChange={e => setNewPhone(e.target.value)}
+                        placeholder="(xx) xxxxx-xxxx"
+                        required
+                        className="w-full bg-[#172122] border border-[#2a3a3d] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1.5">
+                        <Mail className="w-3 h-3" /> E-mail
+                      </label>
+                      <input
+                        type="email"
+                        value={newEmail}
+                        onChange={e => setNewEmail(e.target.value)}
+                        placeholder="email@empresa.com"
+                        className="w-full bg-[#172122] border border-[#2a3a3d] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1.5">
+                        <Building2 className="w-3 h-3" /> Empresa
+                      </label>
+                      <input
+                        type="text"
+                        value={newCompany}
+                        onChange={e => setNewCompany(e.target.value)}
+                        placeholder="Nome da empresa"
+                        className="w-full bg-[#172122] border border-[#2a3a3d] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Origem</label>
+                      <select
+                        value={newSource}
+                        onChange={e => setNewSource(e.target.value)}
+                        className="w-full bg-[#172122] border border-[#2a3a3d] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors"
+                      >
+                        <option value="Indicação">Indicação</option>
+                        <option value="WhatsApp">WhatsApp</option>
+                        <option value="Instagram">Instagram</option>
+                        <option value="Google">Google</option>
+                        <option value="Visita Presencial">Visita Presencial</option>
+                        <option value="Ligação Fria">Ligação Fria</option>
+                        <option value="Outros">Outros</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400 flex items-center gap-1.5">
+                        <DollarSign className="w-3 h-3" /> Valor Estimado (R$)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={newEstimatedValue}
+                        onChange={e => setNewEstimatedValue(e.target.value)}
+                        placeholder="Ex: 50000.00"
+                        className="w-full bg-[#172122] border border-[#2a3a3d] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Observações</label>
+                      <textarea
+                        value={newNotes}
+                        onChange={e => setNewNotes(e.target.value)}
+                        placeholder="Contexto inicial, necessidades, como chegou até você..."
+                        rows={3}
+                        className="w-full bg-[#172122] border border-[#2a3a3d] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-ferppa-gold transition-colors resize-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 pt-2 border-t border-[#1e2a2c]">
+                    <button
+                      type="button"
+                      onClick={() => setShowNewLeadForm(false)}
+                      className="flex-1 px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors border border-[#2a3a3d]"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isCreatingLead}
+                      className="flex-1 bg-ferppa-gold text-ferppa-dark font-bold text-xs uppercase tracking-widest px-4 py-2.5 rounded-lg hover:bg-yellow-500 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      {isCreatingLead ? 'Criando...' : 'Criar Lead'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

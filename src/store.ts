@@ -29,11 +29,11 @@ interface FerppaState {
   updateLead: (id: string, updates: Partial<Lead>) => Promise<void>;
   updateLeadStatus: (id: string, status: LeadStatus) => Promise<void>;
   deleteLead: (id: string) => Promise<void>;
-  addLeadTask: (task: Omit<LeadTask, 'id' | 'created_at'>) => void;
-  updateLeadTask: (id: string, updates: Partial<LeadTask>) => void;
-  deleteLeadTask: (id: string) => void;
-  addLeadNote: (note: Omit<LeadNote, 'id' | 'created_at'>) => void;
-  deleteLeadNote: (id: string) => void;
+  addLeadTask: (task: Omit<LeadTask, 'id' | 'created_at'>) => Promise<void>;
+  updateLeadTask: (id: string, updates: Partial<LeadTask>) => Promise<void>;
+  deleteLeadTask: (id: string) => Promise<void>;
+  addLeadNote: (note: Omit<LeadNote, 'id' | 'created_at'>) => Promise<void>;
+  deleteLeadNote: (id: string) => Promise<void>;
   resetToDefaults: () => void;
   getWeeklyLimitsExceeded: () => Array<{
     fleetId: string;
@@ -86,14 +86,18 @@ export const useFerppaStore = create<FerppaState>((set, get) => ({
         { data: tripsData },
         { data: geoData },
         { data: financeData },
-        { data: leadsData }
+        { data: leadsData },
+        { data: leadTasksData },
+        { data: leadNotesData }
       ] = await Promise.all([
         supabase.from('fleet').select('*'),
         supabase.from('fuel_logs').select('*').order('date', { ascending: false }),
         supabase.from('trips').select('*').order('date', { ascending: false }),
         supabase.from('geofences').select('*').order('created_at', { ascending: false }),
         supabase.from('finance_transactions').select('*').order('date', { ascending: false }),
-        supabase.from('leads').select('*').order('created_at', { ascending: false })
+        supabase.from('leads').select('*').order('created_at', { ascending: false }),
+        supabase.from('lead_tasks').select('*').order('created_at', { ascending: false }),
+        supabase.from('lead_notes').select('*').order('created_at', { ascending: false })
       ]);
 
       set({
@@ -103,6 +107,8 @@ export const useFerppaStore = create<FerppaState>((set, get) => ({
         geofences: geoData || [],
         financeTransactions: financeData || [],
         leads: leadsData || [],
+        leadTasks: leadTasksData || [],
+        leadNotes: leadNotesData || [],
         loading: false
       });
     } catch (error) {
@@ -114,6 +120,8 @@ export const useFerppaStore = create<FerppaState>((set, get) => ({
         geofences: [],
         financeTransactions: [],
         leads: [],
+        leadTasks: [],
+        leadNotes: [],
         loading: false
       });
     }
@@ -232,28 +240,36 @@ export const useFerppaStore = create<FerppaState>((set, get) => ({
     await supabase.from('leads').delete().eq('id', id);
   },
 
-  addLeadTask: (task) => {
+  addLeadTask: async (task) => {
     const newTask = { ...task, id: crypto.randomUUID(), created_at: new Date().toISOString() } as LeadTask;
     set((state) => ({ leadTasks: [newTask, ...state.leadTasks] }));
+    const { error } = await supabase.from('lead_tasks').insert([newTask]);
+    if (error) console.error('Erro ao salvar tarefa:', error);
   },
 
-  updateLeadTask: (id, updates) => {
+  updateLeadTask: async (id, updates) => {
     set((state) => ({
       leadTasks: state.leadTasks.map(t => t.id === id ? { ...t, ...updates } : t)
     }));
+    const { error } = await supabase.from('lead_tasks').update(updates).eq('id', id);
+    if (error) console.error('Erro ao atualizar tarefa:', error);
   },
 
-  deleteLeadTask: (id) => {
+  deleteLeadTask: async (id) => {
     set((state) => ({ leadTasks: state.leadTasks.filter(t => t.id !== id) }));
+    await supabase.from('lead_tasks').delete().eq('id', id);
   },
 
-  addLeadNote: (note) => {
+  addLeadNote: async (note) => {
     const newNote = { ...note, id: crypto.randomUUID(), created_at: new Date().toISOString() } as LeadNote;
     set((state) => ({ leadNotes: [newNote, ...state.leadNotes] }));
+    const { error } = await supabase.from('lead_notes').insert([newNote]);
+    if (error) console.error('Erro ao salvar nota:', error);
   },
 
-  deleteLeadNote: (id) => {
+  deleteLeadNote: async (id) => {
     set((state) => ({ leadNotes: state.leadNotes.filter(n => n.id !== id) }));
+    await supabase.from('lead_notes').delete().eq('id', id);
   },
 
   resetToDefaults: () => {

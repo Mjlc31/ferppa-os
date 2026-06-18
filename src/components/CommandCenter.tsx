@@ -261,26 +261,44 @@ export default function CommandCenter() {
       
       <div className="flex flex-col gap-6">
         <div className="bg-gradient-to-b from-[#182324] to-[#131b1c] shadow-panel border border-[#1e2a2c] rounded-xl p-6 hover:border-[#2a3a3d] transition-colors">
-          <div className="text-[11px] uppercase tracking-[0.1em] text-gray-400 font-bold mb-5">Status da Frota</div>
+          <div className="text-[11px] uppercase tracking-[0.1em] text-gray-400 font-bold mb-5">Status da Frota ({fleet.length} equipamentos)</div>
           <div className="space-y-4">
-            <div>
-              <div className="flex justify-between text-[11px] uppercase tracking-wider mb-2">
-                <span className="text-gray-500 font-bold">Operacional</span>
-                <span className="font-mono text-white">18 / 20</span>
-              </div>
-              <div className="w-full h-1.5 bg-[#0f1516] rounded-full overflow-hidden border border-[#1e2a2c]">
-                <div className="h-full bg-ferppa-gold shadow-[0_0_10px_rgba(183,145,82,0.8)]" style={{ width: '90%' }}></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-[11px] uppercase tracking-wider mb-2 mt-4">
-                <span className="text-gray-500 font-bold">Em Manutenção</span>
-                <span className="font-mono text-white">02</span>
-              </div>
-              <div className="w-full h-1.5 bg-[#0f1516] rounded-full overflow-hidden border border-[#1e2a2c]">
-                <div className="h-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]" style={{ width: '10%' }}></div>
-              </div>
-            </div>
+            {fleet.length === 0 ? (
+              <div className="text-[11px] text-gray-500 font-mono text-center py-4">Nenhum equipamento cadastrado.</div>
+            ) : (
+              <>
+                {/* Active this week: had at least 1 fuel log */}
+                {(() => {
+                  const activeIds = new Set(weeklyFuelLogs.map(l => l.fleet_id));
+                  const activeCount = fleet.filter(f => activeIds.has(f.id)).length;
+                  const inactiveCount = fleet.length - activeCount;
+                  const activePct = fleet.length > 0 ? (activeCount / fleet.length) * 100 : 0;
+                  const inactivePct = 100 - activePct;
+                  return (
+                    <>
+                      <div>
+                        <div className="flex justify-between text-[11px] uppercase tracking-wider mb-2">
+                          <span className="text-gray-500 font-bold">Ativos (com abast. semana)</span>
+                          <span className="font-mono text-white">{activeCount} / {fleet.length}</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-[#0f1516] rounded-full overflow-hidden border border-[#1e2a2c]">
+                          <div className="h-full bg-ferppa-gold shadow-[0_0_10px_rgba(183,145,82,0.8)] transition-all" style={{ width: `${activePct}%` }}></div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-[11px] uppercase tracking-wider mb-2 mt-4">
+                          <span className="text-gray-500 font-bold">Sem atividade / Parados</span>
+                          <span className="font-mono text-white">{inactiveCount}</span>
+                        </div>
+                        <div className="w-full h-1.5 bg-[#0f1516] rounded-full overflow-hidden border border-[#1e2a2c]">
+                          <div className="h-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)] transition-all" style={{ width: `${inactivePct}%` }}></div>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </>
+            )}
           </div>
         </div>
       </div>
