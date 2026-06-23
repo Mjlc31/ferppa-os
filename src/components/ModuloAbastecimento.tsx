@@ -4,15 +4,16 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Fuel, Plus, Calendar, Clock, Filter, Eye, CheckCircle, ArrowRight, Image as ImageIcon, Edit, Download } from 'lucide-react';
+import { Fuel, Plus, Calendar, Clock, Filter, Eye, CheckCircle, ArrowRight, Image as ImageIcon, Edit, Download, Trash2, X, Save } from 'lucide-react';
 import { FleetType, FuelLogItem } from '../types';
 import { toast } from 'sonner';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useFerppaStore } from '../store';
+import ConfirmDeleteModal from './ConfirmDeleteModal';
 
 export default function ModuloAbastecimento() {
-  const { fleet, fuelLogs, addFuelLog, deleteFuelLog, userProfile } = useFerppaStore();
+  const { fleet, fuelLogs, addFuelLog, deleteFuelLog, updateFuelLog, userProfile } = useFerppaStore();
   const isAdmin = userProfile?.role === 'ADMIN';
   // Form State
   const [fleetId, setFleetId] = useState('');
@@ -35,10 +36,100 @@ export default function ModuloAbastecimento() {
   const [formSuccess, setFormSuccess] = useState(false);
   const [viewingReceipt, setViewingReceipt] = useState<FuelLogItem | null>(null);
 
+  // ─── Edit Modal State ───────────────────────────────────────────────────────
+  const [editingLog, setEditingLog] = useState<FuelLogItem | null>(null);
+  const [editFleetId, setEditFleetId] = useState('');
+  const [editControlNumber, setEditControlNumber] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editTime, setEditTime] = useState('');
+  const [editGasStation, setEditGasStation] = useState('');
+  const [editOdometer, setEditOdometer] = useState('');
+  const [editFuelType, setEditFuelType] = useState('');
+  const [editLiters, setEditLiters] = useState('');
+  const [editUnitPrice, setEditUnitPrice] = useState('');
+  const [editReceiptNumber, setEditReceiptNumber] = useState('');
+  const [editPaymentMethod, setEditPaymentMethod] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  // ─── Delete Modal State ─────────────────────────────────────────────────────
+  const [deletingLog, setDeletingLog] = useState<FuelLogItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Auto-calculate live total value
   const calculatedTotal = Number(liters) > 0 && Number(unitPrice) > 0 
     ? (Number(liters) * Number(unitPrice)).toFixed(2)
     : '0.00';
+
+  const editCalculatedTotal = Number(editLiters) > 0 && Number(editUnitPrice) > 0
+    ? (Number(editLiters) * Number(editUnitPrice)).toFixed(2)
+    : '0.00';
+
+  const openEditLog = (log: FuelLogItem) => {
+    setEditingLog(log);
+    setEditFleetId(log.fleet_id);
+    setEditControlNumber(log.control_number);
+    setEditDate(log.date);
+    setEditTime(log.time);
+    setEditGasStation(log.gas_station);
+    setEditOdometer(String(log.odometer));
+    setEditFuelType(log.fuel_type);
+    setEditLiters(String(log.liters));
+    setEditUnitPrice(String(log.unit_price));
+    setEditReceiptNumber(log.receipt_number || '');
+    setEditPaymentMethod(log.payment_method || 'A PRAZO / FATURADO');
+  };
+
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLog) return;
+    if (!editFleetId || !editLiters || !editUnitPrice) {
+      toast.error('Preencha os campos obrigatórios.');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await updateFuelLog(editingLog.id, {
+        fleet_id: editFleetId,
+        control_number: editControlNumber,
+        date: editDate,
+        time: editTime,
+        gas_station: editGasStation,
+        odometer: parseInt(editOdometer) || 0,
+        fuel_type: editFuelType,
+        liters: parseFloat(editLiters),
+        unit_price: parseFloat(editUnitPrice),
+        receipt_number: editReceiptNumber || 'S/N',
+        payment_method: editPaymentMethod,
+      });
+      toast.success('Abastecimento atualizado com sucesso!');
+      setEditingLog(null);
+    } catch {
+      toast.error('Erro ao salvar alterações.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingLog) return;
+    setIsDeleting(true);
+    try {
+      await deleteFuelLog(deletingLog.id);
+      toast.success(`Registro ${deletingLog.control_number} excluído.`);
+      setDeletingLog(null);
+    } catch {
+      toast.error('Erro ao excluir registro.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Close edit modal on ESC
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setEditingLog(null); };
+    if (editingLog) document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [editingLog]);
 
   // Seed default control number on open
   useEffect(() => {
@@ -507,7 +598,7 @@ export default function ModuloAbastecimento() {
                   const isCaminhao = parentFleet?.type === FleetType.CAMINHAO;
                   
                   return (
-                    <tr key={log.id} className="hover:bg-white/5 transition-colors">
+                    <tr key={log.id} className="hover:bg-white/5 transition-colors group">
                       <td className="p-3 font-mono text-white">{log.control_number}</td>
                       <td className="p-3">
                         <div className="font-mono text-ferppa-gold">{parentFleet?.plate || 'Indefinido'}</div>
@@ -553,15 +644,22 @@ export default function ModuloAbastecimento() {
                       </td>
                       <td className="p-3 text-center">
                         {isAdmin && (
-                          <button
-                            onClick={() => {
-                              toast.info('Funcionalidade de edição em desenvolvimento.');
-                            }}
-                            className="p-1 text-gray-500 hover:text-ferppa-gold transition-colors"
-                            title="Editar Registro"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => openEditLog(log)}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-ferppa-gold hover:bg-ferppa-gold/10 transition-all"
+                              title="Editar Registro"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setDeletingLog(log)}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                              title="Excluir Registro"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -655,6 +753,152 @@ export default function ModuloAbastecimento() {
           </div>
         </div>
       )}
+
+      {/* ─── EDIT MODAL ──────────────────────────────────────────────────────── */}
+      {editingLog && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.80)', backdropFilter: 'blur(10px)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setEditingLog(null); }}
+        >
+          <div
+            className="relative w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, #1a2426 0%, #131b1c 100%)',
+              border: '1px solid rgba(212,175,55,0.3)',
+              animation: 'modalIn 0.25s cubic-bezier(.34,1.56,.64,1)',
+            }}
+          >
+            <div className="h-1 w-full" style={{ background: 'linear-gradient(90deg, #d4af37, #b8960c)' }} />
+
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                  style={{ background: 'rgba(212,175,55,0.15)', border: '1px solid rgba(212,175,55,0.3)' }}>
+                  <Fuel className="w-5 h-5 text-ferppa-gold" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Editar Registro de Abastecimento</h3>
+                  <p className="text-[11px] text-gray-500 font-mono mt-0.5">{editingLog.control_number}</p>
+                </div>
+              </div>
+              <button onClick={() => setEditingLog(null)} className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSave}>
+              <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 max-h-[60vh] overflow-y-auto minimal-scrollbar">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Equipamento *</label>
+                  <select value={editFleetId} onChange={e => setEditFleetId(e.target.value)}
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite" required>
+                    {fleet.map(f => <option key={f.id} value={f.id}>{f.plate} - {f.driver_name.split(' ')[0]}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Nº Controle *</label>
+                  <input type="text" value={editControlNumber} onChange={e => setEditControlNumber(e.target.value)}
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite font-mono" required />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Data *</label>
+                  <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite font-mono" required />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Hora *</label>
+                  <input type="time" value={editTime} onChange={e => setEditTime(e.target.value)}
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite font-mono" required />
+                </div>
+                <div className="space-y-1.5 col-span-1 sm:col-span-2">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Posto / Local</label>
+                  <input type="text" value={editGasStation} onChange={e => setEditGasStation(e.target.value)}
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Hodômetro (KM)</label>
+                  <input type="number" value={editOdometer} onChange={e => setEditOdometer(e.target.value)}
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Tipo Combustível</label>
+                  <input type="text" value={editFuelType} onChange={e => setEditFuelType(e.target.value)}
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Litros *</label>
+                  <input type="number" step="0.01" value={editLiters} onChange={e => setEditLiters(e.target.value)}
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite font-mono font-bold" required />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Preço Unit. (R$/L) *</label>
+                  <input type="number" step="0.001" value={editUnitPrice} onChange={e => setEditUnitPrice(e.target.value)}
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite font-mono" required />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Cupom Fiscal Nº</label>
+                  <input type="text" value={editReceiptNumber} onChange={e => setEditReceiptNumber(e.target.value)}
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Forma de Pagamento</label>
+                  <select value={editPaymentMethod} onChange={e => setEditPaymentMethod(e.target.value)}
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite">
+                    <option value="A PRAZO / FATURADO">A PRAZO / FATURADO</option>
+                    <option value="ESTOQUE INTERNO">ESTOQUE INTERNO</option>
+                    <option value="À VISTA / PIX">À VISTA / PIX</option>
+                    <option value="CARTÃO DE CRÉDITO">CARTÃO DE CRÉDITO</option>
+                  </select>
+                </div>
+
+                {/* Live Total */}
+                <div className="col-span-1 sm:col-span-2 lg:col-span-2 flex items-center">
+                  <div className="w-full rounded-xl px-4 py-3 border border-ferppa-gold/20"
+                    style={{ background: 'rgba(212,175,55,0.06)' }}>
+                    <div className="text-[10px] uppercase tracking-widest text-gray-500">Total do Abastecimento</div>
+                    <div className="text-xl font-mono font-bold text-ferppa-gold mt-0.5">
+                      R$ {Number(editCalculatedTotal).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/10"
+                style={{ background: 'rgba(0,0,0,0.2)' }}>
+                <button type="button" onClick={() => setEditingLog(null)}
+                  className="px-5 py-2.5 rounded-lg text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 border border-white/10 transition-colors">
+                  CANCELAR
+                </button>
+                <button type="submit" disabled={isSaving}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-ferppa-dark transition-all active:scale-95 disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, #d4af37, #b8960c)', boxShadow: '0 4px 15px rgba(212,175,55,0.3)' }}>
+                  <Save className="w-4 h-4" />
+                  {isSaving ? 'SALVANDO...' : 'SALVAR ALTERAÇÕES'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <style>{`
+            @keyframes modalIn {
+              from { opacity: 0; transform: scale(0.93) translateY(10px); }
+              to   { opacity: 1; transform: scale(1)    translateY(0);    }
+            }
+          `}</style>
+        </div>
+      )}
+
+      {/* ─── DELETE CONFIRM MODAL ─────────────────────────────────────────────── */}
+      <ConfirmDeleteModal
+        isOpen={!!deletingLog}
+        onClose={() => setDeletingLog(null)}
+        onConfirm={handleDeleteConfirm}
+        isLoading={isDeleting}
+        title="Excluir Registro de Abastecimento"
+        description="Esta ação é permanente. O registro será removido do banco de dados e os totalizadores serão atualizados automaticamente."
+        itemLabel={deletingLog ? `${deletingLog.control_number} — ${fleet.find(f => f.id === deletingLog.fleet_id)?.plate || '???'} — ${deletingLog.liters}L de ${deletingLog.fuel_type}` : undefined}
+      />
     </div>
   );
 }

@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, Phone, Mail, Calendar, DollarSign, Building2, 
   UserCircle2, Clock, CheckCircle2, MessageSquare, 
-  Plus, Activity, Check, Circle
+  Plus, Activity, Check, Edit2, Trash2, Save, AlertTriangle
 } from 'lucide-react';
 import { Lead, LeadTaskType, LeadStatus } from '../../types';
 import { useFerppaStore } from '../../store';
+import { toast } from 'sonner';
 
 interface LeadDrawerProps {
   leadId: string | null;
@@ -17,10 +18,14 @@ const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
+const STATUS_OPTIONS: LeadStatus[] = ['NOVO', 'EM CONTATO', 'NEGOCIAÇÃO', 'CONVERTIDO', 'PERDIDO'];
+
 export default function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
   const { 
     leads, leadTasks, leadNotes, 
-    updateLead, addLeadTask, updateLeadTask, addLeadNote,
+    updateLead, deleteLead,
+    addLeadTask, updateLeadTask, deleteLeadTask,
+    addLeadNote, deleteLeadNote,
     userProfile
   } = useFerppaStore();
   
@@ -28,28 +33,119 @@ export default function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
   
   const lead = leads.find(l => l.id === leadId);
 
+  // ─── Task Form ───────────────────────────────────────────────────────────────
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskType, setNewTaskType] = useState<LeadTaskType>('CALL');
   const [newTaskDate, setNewTaskDate] = useState('');
   
+  // ─── Note Form ───────────────────────────────────────────────────────────────
   const [newNoteContent, setNewNoteContent] = useState('');
-  
-  const [isEditingValue, setIsEditingValue] = useState(false);
+
+  // ─── Edit Lead (full) ────────────────────────────────────────────────────────
+  const [isEditingLead, setIsEditingLead] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editCompany, setEditCompany] = useState('');
+  const [editSource, setEditSource] = useState('');
   const [editValue, setEditValue] = useState('');
+  const [editStatus, setEditStatus] = useState<LeadStatus>('NOVO');
+  const [editNotes, setEditNotes] = useState('');
+  const [isSavingLead, setIsSavingLead] = useState(false);
 
-  if (!lead) return null;
+  // ─── Delete Lead ─────────────────────────────────────────────────────────────
+  const [showDeleteLead, setShowDeleteLead] = useState(false);
+  const [isDeletingLead, setIsDeletingLead] = useState(false);
 
-  const tasks = leadTasks.filter(t => t.lead_id === lead.id).sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
-  const notes = leadNotes.filter(n => n.lead_id === lead.id).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  // ─── Delete Task/Note ─────────────────────────────────────────────────────────
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
 
-  const handleSaveValue = () => {
-    updateLead(lead.id, { estimated_value: Number(editValue) });
-    setIsEditingValue(false);
+  const openEditLead = () => {
+    if (!lead) return;
+    setEditName(lead.name);
+    setEditPhone(lead.phone || '');
+    setEditEmail(lead.email || '');
+    setEditCompany(lead.company || '');
+    setEditSource(lead.source || 'Indicação');
+    setEditValue(lead.estimated_value ? String(lead.estimated_value) : '');
+    setEditStatus(lead.status);
+    setEditNotes(lead.notes || '');
+    setIsEditingLead(true);
   };
+
+  const handleSaveLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!lead || !editName || !editPhone) { toast.error('Nome e telefone são obrigatórios.'); return; }
+    setIsSavingLead(true);
+    try {
+      await updateLead(lead.id, {
+        name: editName.trim(),
+        phone: editPhone.trim(),
+        email: editEmail.trim() || undefined,
+        company: editCompany.trim() || undefined,
+        source: editSource,
+        estimated_value: editValue ? parseFloat(editValue) : undefined,
+        status: editStatus,
+        notes: editNotes.trim() || undefined,
+      });
+      toast.success('Lead atualizado com sucesso!');
+      setIsEditingLead(false);
+    } catch {
+      toast.error('Erro ao salvar alterações.');
+    } finally {
+      setIsSavingLead(false);
+    }
+  };
+
+  const handleDeleteLead = async () => {
+    if (!lead) return;
+    setIsDeletingLead(true);
+    try {
+      await deleteLead(lead.id);
+      toast.success(`Lead "${lead.name}" excluído.`);
+      onClose();
+    } catch {
+      toast.error('Erro ao excluir lead.');
+    } finally {
+      setIsDeletingLead(false);
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    setDeletingTaskId(taskId);
+    try {
+      await deleteLeadTask(taskId);
+      toast.success('Tarefa removida.');
+    } catch {
+      toast.error('Erro ao remover tarefa.');
+    } finally {
+      setDeletingTaskId(null);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    setDeletingNoteId(noteId);
+    try {
+      await deleteLeadNote(noteId);
+      toast.success('Nota removida.');
+    } catch {
+      toast.error('Erro ao remover nota.');
+    } finally {
+      setDeletingNoteId(null);
+    }
+  };
+
+  // Close edit on ESC
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsEditingLead(false); };
+    if (isEditingLead) document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [isEditingLead]);
 
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTaskTitle || !newTaskDate) return;
+    if (!newTaskTitle || !newTaskDate || !lead) return;
     addLeadTask({
       lead_id: lead.id,
       title: newTaskTitle,
@@ -63,7 +159,7 @@ export default function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
 
   const handleAddNote = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newNoteContent) return;
+    if (!newNoteContent || !lead) return;
     addLeadNote({
       lead_id: lead.id,
       content: newNoteContent,
@@ -80,6 +176,11 @@ export default function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
       case 'TODO': return <CheckCircle2 className="w-3 h-3" />;
     }
   };
+
+  if (!lead) return null;
+
+  const tasks = leadTasks.filter(t => t.lead_id === lead.id).sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+  const notes = leadNotes.filter(n => n.lead_id === lead.id).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return (
     <AnimatePresence>
@@ -113,14 +214,31 @@ export default function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
                 <div className="w-12 h-12 rounded-xl bg-ferppa-dark border border-ferppa-gold/30 flex items-center justify-center text-ferppa-gold font-black text-xl shadow-[0_0_15px_rgba(183,145,82,0.15)]">
                   {lead.name.charAt(0).toUpperCase()}
                 </div>
-                <div>
-                  <h2 className="text-xl font-bold text-white tracking-tight">{lead.name}</h2>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-xl font-bold text-white tracking-tight truncate">{lead.name}</h2>
                   {lead.company && (
                     <div className="flex items-center gap-1.5 text-xs text-ferppa-gold">
                       <Building2 className="w-3 h-3" />
                       <span>{lead.company}</span>
                     </div>
                   )}
+                </div>
+                {/* Admin actions */}
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={openEditLead}
+                    className="p-2 rounded-lg text-gray-500 hover:text-ferppa-gold hover:bg-ferppa-gold/10 transition-all"
+                    title="Editar Lead"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteLead(true)}
+                    className="p-2 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                    title="Excluir Lead"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
@@ -132,28 +250,12 @@ export default function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
                     {lead.status}
                   </span>
                 </div>
-                <div className="flex-1 bg-[#0a0e0f] rounded-lg p-3 border border-[#1e2a2c] relative group">
+                <div className="flex-1 bg-[#0a0e0f] rounded-lg p-3 border border-[#1e2a2c]">
                   <span className="text-[10px] uppercase tracking-widest text-gray-500 font-bold block mb-1">Valor Estimado</span>
-                  {isEditingValue ? (
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="number" 
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="bg-ferppa-dark text-white text-xs px-2 py-1 rounded border border-ferppa-gold/50 w-full focus:outline-none"
-                        placeholder="Valor"
-                      />
-                      <button onClick={handleSaveValue} className="text-green-400 hover:text-green-300"><Check className="w-4 h-4"/></button>
-                    </div>
-                  ) : (
-                    <div 
-                      className="text-sm font-bold text-green-400 cursor-pointer flex items-center gap-1"
-                      onClick={() => { setEditValue(lead.estimated_value?.toString() || ''); setIsEditingValue(true); }}
-                    >
-                      <DollarSign className="w-3 h-3" />
-                      {lead.estimated_value ? formatCurrency(lead.estimated_value) : 'Adicionar Valor'}
-                    </div>
-                  )}
+                  <div className="text-sm font-bold text-green-400 flex items-center gap-1">
+                    <DollarSign className="w-3 h-3" />
+                    {lead.estimated_value ? formatCurrency(lead.estimated_value) : '—'}
+                  </div>
                 </div>
               </div>
             </div>
@@ -187,7 +289,6 @@ export default function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                   <div className="space-y-4">
                     <h3 className="text-xs uppercase tracking-widest text-gray-500 font-bold border-b border-[#1e2a2c] pb-2">Informações de Contato</h3>
-                    
                     <div className="bg-[#141d1e] rounded-xl p-4 border border-[#1e2a2c] space-y-4">
                       {lead.phone && (
                         <div className="flex items-center gap-3">
@@ -200,7 +301,6 @@ export default function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
                           </div>
                         </div>
                       )}
-                      
                       {lead.email && (
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-lg bg-ferppa-dark flex items-center justify-center text-ferppa-gold">
@@ -244,7 +344,6 @@ export default function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
                     <h3 className="text-xs uppercase tracking-widest text-ferppa-gold font-bold flex items-center gap-2">
                       <Plus className="w-3 h-3" /> Nova Tarefa
                     </h3>
-                    
                     <input 
                       type="text"
                       placeholder="Ex: Ligar para confirmar proposta"
@@ -253,7 +352,6 @@ export default function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
                       className="w-full bg-[#0a0e0f] border border-[#2a3a3d] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-ferppa-gold"
                       required
                     />
-                    
                     <div className="flex gap-2">
                       <select 
                         value={newTaskType}
@@ -265,7 +363,6 @@ export default function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
                         <option value="MEETING">Reunião</option>
                         <option value="TODO">A Fazer</option>
                       </select>
-                      
                       <input 
                         type="date"
                         value={newTaskDate}
@@ -274,7 +371,6 @@ export default function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
                         required
                       />
                     </div>
-                    
                     <button type="submit" className="w-full bg-ferppa-dark text-ferppa-gold border border-ferppa-gold/50 rounded-lg py-2 text-xs font-bold uppercase tracking-widest hover:bg-ferppa-gold hover:text-ferppa-dark transition-colors">
                       Adicionar Tarefa
                     </button>
@@ -289,7 +385,7 @@ export default function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
                         return (
                           <div 
                             key={task.id} 
-                            className={`flex items-start gap-3 p-3 rounded-xl border ${
+                            className={`flex items-start gap-3 p-3 rounded-xl border group ${
                               task.completed ? 'bg-[#0a0e0f] border-[#1e2a2c] opacity-50' : 
                               isOverdue ? 'bg-red-500/10 border-red-500/30' : 'bg-[#141d1e] border-[#2a3a3d]'
                             } transition-all`}
@@ -316,6 +412,15 @@ export default function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
                                 </span>
                               </div>
                             </div>
+                            {/* Delete task button */}
+                            <button
+                              onClick={() => handleDeleteTask(task.id)}
+                              disabled={deletingTaskId === task.id}
+                              className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-50"
+                              title="Remover tarefa"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         )
                       })
@@ -356,9 +461,19 @@ export default function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
                           <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-[#141d1e] p-4 rounded-xl border border-[#1e2a2c] shadow">
                             <div className="flex items-center justify-between mb-2">
                               <span className="font-bold text-xs text-ferppa-gold">{note.author_email?.split('@')[0] || 'Usuário'}</span>
-                              <span className="text-[10px] text-gray-500 font-mono">
-                                {new Date(note.created_at).toLocaleDateString('pt-BR')} {new Date(note.created_at).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}
-                              </span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-gray-500 font-mono">
+                                  {new Date(note.created_at).toLocaleDateString('pt-BR')} {new Date(note.created_at).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}
+                                </span>
+                                <button
+                                  onClick={() => handleDeleteNote(note.id)}
+                                  disabled={deletingNoteId === note.id}
+                                  className="p-1 rounded text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-50 opacity-0 group-hover:opacity-100"
+                                  title="Remover nota"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
                             <p className="text-sm text-gray-300 whitespace-pre-wrap">{note.content}</p>
                           </div>
@@ -370,6 +485,180 @@ export default function LeadDrawer({ leadId, onClose }: LeadDrawerProps) {
               )}
             </div>
           </motion.div>
+
+          {/* ─── EDIT LEAD MODAL ───────────────────────────────────────────────── */}
+          <AnimatePresence>
+            {isEditingLead && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-sm"
+                  onClick={() => setIsEditingLead(false)}
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                  className="fixed inset-0 z-[120] flex items-center justify-center p-4"
+                >
+                  <div
+                    className="relative w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"
+                    style={{
+                      background: 'linear-gradient(135deg, #1a2426 0%, #131b1c 100%)',
+                      border: '1px solid rgba(212,175,55,0.3)',
+                    }}
+                  >
+                    <div className="h-1 w-full" style={{ background: 'linear-gradient(90deg, #d4af37, #b8960c)' }} />
+
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                          style={{ background: 'rgba(212,175,55,0.15)', border: '1px solid rgba(212,175,55,0.3)' }}>
+                          <span className="text-ferppa-gold font-black text-lg">{lead.name.charAt(0)}</span>
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-white">Editar Lead</h3>
+                          <p className="text-[11px] text-gray-500 mt-0.5">{lead.name}</p>
+                        </div>
+                      </div>
+                      <button onClick={() => setIsEditingLead(false)} className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors">
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleSaveLead}>
+                      <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[65vh] overflow-y-auto minimal-scrollbar">
+                        <div className="space-y-1.5 sm:col-span-2">
+                          <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Nome Completo *</label>
+                          <input type="text" value={editName} onChange={e => setEditName(e.target.value)} required
+                            className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Telefone / WhatsApp *</label>
+                          <input type="tel" value={editPhone} onChange={e => setEditPhone(e.target.value)} required
+                            className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite font-mono" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">E-mail</label>
+                          <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)}
+                            className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Empresa</label>
+                          <input type="text" value={editCompany} onChange={e => setEditCompany(e.target.value)}
+                            className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Status</label>
+                          <select value={editStatus} onChange={e => setEditStatus(e.target.value as LeadStatus)}
+                            className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite font-bold">
+                            {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Origem</label>
+                          <select value={editSource} onChange={e => setEditSource(e.target.value)}
+                            className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite">
+                            {['Indicação','WhatsApp','Instagram','Google','Visita Presencial','Ligação Fria','Outros'].map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                        <div className="space-y-1.5 sm:col-span-2">
+                          <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Valor Estimado (R$)</label>
+                          <div className="rounded-xl px-4 py-3 border border-ferppa-gold/20" style={{ background: 'rgba(212,175,55,0.06)' }}>
+                            <div className="flex items-center gap-3">
+                              <DollarSign className="w-4 h-4 text-ferppa-gold shrink-0" />
+                              <input type="number" step="0.01" value={editValue} onChange={e => setEditValue(e.target.value)}
+                                placeholder="0,00"
+                                className="flex-1 bg-transparent text-green-400 font-mono font-bold text-lg focus:outline-none placeholder-green-400/30" />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="space-y-1.5 sm:col-span-2">
+                          <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Observações</label>
+                          <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={3}
+                            className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite resize-none" />
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/10"
+                        style={{ background: 'rgba(0,0,0,0.2)' }}>
+                        <button type="button" onClick={() => setIsEditingLead(false)}
+                          className="px-5 py-2.5 rounded-lg text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 border border-white/10 transition-colors">
+                          CANCELAR
+                        </button>
+                        <button type="submit" disabled={isSavingLead}
+                          className="flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-ferppa-dark transition-all active:scale-95 disabled:opacity-50"
+                          style={{ background: 'linear-gradient(135deg, #d4af37, #b8960c)', boxShadow: '0 4px 15px rgba(212,175,55,0.3)' }}>
+                          <Save className="w-4 h-4" />
+                          {isSavingLead ? 'SALVANDO...' : 'SALVAR ALTERAÇÕES'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+
+          {/* ─── DELETE LEAD CONFIRMATION ──────────────────────────────────────── */}
+          <AnimatePresence>
+            {showDeleteLead && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[110] bg-black/70 backdrop-blur-sm"
+                  onClick={() => setShowDeleteLead(false)}
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                  className="fixed inset-0 z-[120] flex items-center justify-center p-4"
+                >
+                  <div
+                    className="relative w-full max-w-md rounded-2xl shadow-2xl overflow-hidden"
+                    style={{
+                      background: 'linear-gradient(135deg, #1a1010 0%, #131b1c 100%)',
+                      border: '1px solid rgba(239,68,68,0.3)',
+                    }}
+                  >
+                    <div className="h-1 w-full" style={{ background: 'linear-gradient(90deg, #ef4444, #b91c1c)' }} />
+                    <div className="p-6">
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-red-500/10 border border-red-500/30 shrink-0">
+                          <AlertTriangle className="w-6 h-6 text-red-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-base font-bold text-white">Excluir Lead</h3>
+                          <p className="text-xs text-gray-500 mt-0.5">Esta ação é irreversível</p>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-300 mb-2">Você está prestes a excluir o lead:</p>
+                      <div className="bg-red-500/5 border border-red-500/20 rounded-lg px-4 py-3 mb-4">
+                        <p className="text-sm font-bold text-red-300">{lead.name}</p>
+                        {lead.company && <p className="text-xs text-gray-500 mt-0.5">{lead.company}</p>}
+                      </div>
+                      <p className="text-xs text-gray-500 mb-6">Todas as tarefas e notas relacionadas também serão removidas permanentemente.</p>
+                      <div className="flex gap-3">
+                        <button onClick={() => setShowDeleteLead(false)}
+                          className="flex-1 px-4 py-2.5 rounded-lg text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 border border-white/10 transition-colors">
+                          CANCELAR
+                        </button>
+                        <button onClick={handleDeleteLead} disabled={isDeletingLead}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold text-white transition-all active:scale-95 disabled:opacity-50"
+                          style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)', boxShadow: '0 4px 15px rgba(239,68,68,0.3)' }}>
+                          <Trash2 className="w-4 h-4" />
+                          {isDeletingLead ? 'EXCLUINDO...' : 'SIM, EXCLUIR'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
         </>
       )}
     </AnimatePresence>

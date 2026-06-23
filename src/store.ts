@@ -16,14 +16,18 @@ interface FerppaState {
   setActiveTab: (tab: string) => void;
   fetchData: () => Promise<void>;
   addFleetItem: (item: Omit<FleetItem, 'id'>) => Promise<FleetItem | null>;
+  updateFleetItem: (id: string, updates: Partial<Omit<FleetItem, 'id'>>) => Promise<void>;
   deleteFleetItem: (id: string) => Promise<void>;
   addFuelLog: (log: Omit<FuelLogItem, 'id' | 'total_value'>) => Promise<FuelLogItem | null>;
+  updateFuelLog: (id: string, updates: Partial<Omit<FuelLogItem, 'id' | 'total_value'>>) => Promise<void>;
   deleteFuelLog: (id: string) => Promise<void>;
   addTrip: (trip: Omit<TripItem, 'id' | 'total_price'>) => Promise<TripItem | null>;
+  updateTrip: (id: string, updates: Partial<Omit<TripItem, 'id' | 'total_price'>>) => Promise<void>;
   deleteTrip: (id: string) => Promise<void>;
   addGeofence: (geo: Omit<Geofence, 'id' | 'created_at'>) => Promise<Geofence | null>;
   deleteGeofence: (id: string) => Promise<void>;
   addFinanceTransaction: (transaction: Omit<FinanceTransaction, 'id'>) => Promise<FinanceTransaction | null>;
+  updateFinanceTransaction: (id: string, updates: Partial<Omit<FinanceTransaction, 'id'>>) => Promise<void>;
   deleteFinanceTransaction: (id: string) => Promise<void>;
   addLead: (lead: Omit<Lead, 'id' | 'created_at' | 'updated_at'>) => Promise<Lead | null>;
   updateLead: (id: string, updates: Partial<Lead>) => Promise<void>;
@@ -146,6 +150,15 @@ export const useFerppaStore = create<FerppaState>((set, get) => ({
     await supabase.from('fleet').delete().eq('id', id);
   },
 
+  updateFleetItem: async (id, updates) => {
+    set((state) => ({
+      fleet: state.fleet.map(f => f.id === id ? { ...f, ...updates } : f)
+    }));
+    const { error } = await supabase.from('fleet').update(updates).eq('id', id);
+    if (error) console.error('Erro ao atualizar frota:', error);
+  },
+
+
   addFuelLog: async (log) => {
     const total_value = Number((log.liters * log.unit_price).toFixed(2));
     const newLog = { ...log, id: crypto.randomUUID(), total_value };
@@ -163,6 +176,19 @@ export const useFerppaStore = create<FerppaState>((set, get) => ({
     await supabase.from('fuel_logs').delete().eq('id', id);
   },
 
+  updateFuelLog: async (id, updates) => {
+    const total_value = updates.liters !== undefined && updates.unit_price !== undefined
+      ? Number((updates.liters * updates.unit_price).toFixed(2))
+      : undefined;
+    const fullUpdates = total_value !== undefined ? { ...updates, total_value } : updates;
+    set((state) => ({
+      fuelLogs: state.fuelLogs.map(l => l.id === id ? { ...l, ...fullUpdates } : l)
+    }));
+    const { total_value: _tv, ...dbUpdates } = fullUpdates as any;
+    const { error } = await supabase.from('fuel_logs').update(dbUpdates).eq('id', id);
+    if (error) console.error('Erro ao atualizar abastecimento:', error);
+  },
+
   addTrip: async (trip) => {
     const total_price = Number((trip.volume_m3 * trip.unit_price).toFixed(2));
     const newTrip = { ...trip, id: crypto.randomUUID(), total_price };
@@ -178,6 +204,21 @@ export const useFerppaStore = create<FerppaState>((set, get) => ({
   deleteTrip: async (id) => {
     set((state) => ({ trips: state.trips.filter(t => t.id !== id) }));
     await supabase.from('trips').delete().eq('id', id);
+  },
+
+  updateTrip: async (id, updates) => {
+    const existing = get().trips.find(t => t.id === id);
+    if (!existing) return;
+    const volume_m3 = updates.volume_m3 ?? existing.volume_m3;
+    const unit_price = updates.unit_price ?? existing.unit_price;
+    const total_price = Number((volume_m3 * unit_price).toFixed(2));
+    const fullUpdates = { ...updates, total_price };
+    set((state) => ({
+      trips: state.trips.map(t => t.id === id ? { ...t, ...fullUpdates } : t)
+    }));
+    const { total_price: _tp, ...dbUpdates } = fullUpdates as any;
+    const { error } = await supabase.from('trips').update(dbUpdates).eq('id', id);
+    if (error) console.error('Erro ao atualizar viagem:', error);
   },
 
   addGeofence: async (geo) => {
@@ -206,6 +247,14 @@ export const useFerppaStore = create<FerppaState>((set, get) => ({
   deleteFinanceTransaction: async (id) => {
     set((state) => ({ financeTransactions: state.financeTransactions.filter(f => f.id !== id) }));
     await supabase.from('finance_transactions').delete().eq('id', id);
+  },
+
+  updateFinanceTransaction: async (id, updates) => {
+    set((state) => ({
+      financeTransactions: state.financeTransactions.map(f => f.id === id ? { ...f, ...updates } : f)
+    }));
+    const { error } = await supabase.from('finance_transactions').update(updates).eq('id', id);
+    if (error) console.error('Erro ao atualizar transação:', error);
   },
 
   addLead: async (lead) => {

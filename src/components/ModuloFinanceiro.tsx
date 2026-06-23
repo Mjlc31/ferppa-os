@@ -1,15 +1,16 @@
-import React, { useState, useMemo } from 'react';
-import { DollarSign, Edit, CheckCircle, TrendingDown, TrendingUp, Filter, BarChart3, Plus, ArrowUpCircle, ArrowDownCircle, Download } from 'lucide-react';
-import { TransactionType } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { DollarSign, Edit, CheckCircle, TrendingDown, TrendingUp, Filter, BarChart3, Plus, ArrowUpCircle, ArrowDownCircle, Download, Trash2, X, Save } from 'lucide-react';
+import { TransactionType, FinanceTransaction } from '../types';
 import { toast } from 'sonner';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { useFerppaStore } from '../store';
+import ConfirmDeleteModal from './ConfirmDeleteModal';
 
 type PeriodFilter = 'DIARIO' | '15_DIAS' | 'MENSAL' | 'ANUAL';
 
 export default function ModuloFinanceiro() {
-  const { financeTransactions: transactions, fuelLogs, trips, addFinanceTransaction: addTransaction, deleteFinanceTransaction: deleteTransaction, userProfile } = useFerppaStore();
+  const { financeTransactions: transactions, fuelLogs, trips, addFinanceTransaction: addTransaction, deleteFinanceTransaction: deleteTransaction, updateFinanceTransaction: updateTransaction, userProfile } = useFerppaStore();
   const isAdmin = userProfile?.role === 'ADMIN';
   const [activeTab, setActiveTab] = useState<'dre' | 'recebimentos' | 'despesas'>(isAdmin ? 'recebimentos' : 'despesas');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('MENSAL');
@@ -23,6 +24,80 @@ export default function ModuloFinanceiro() {
   const [txAmount, setTxAmount] = useState('');
   const [txPayee, setTxPayee] = useState('');
   const [txCategory, setTxCategory] = useState('');
+
+  // ─── Edit Modal State ───────────────────────────────────────────────────────
+  const [editingTx, setEditingTx] = useState<FinanceTransaction | null>(null);
+  const [editTxType, setEditTxType] = useState<TransactionType>('DESPESA');
+  const [editTxDate, setEditTxDate] = useState('');
+  const [editTxTime, setEditTxTime] = useState('');
+  const [editTxDesc, setEditTxDesc] = useState('');
+  const [editTxAmount, setEditTxAmount] = useState('');
+  const [editTxPayee, setEditTxPayee] = useState('');
+  const [editTxCategory, setEditTxCategory] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  // ─── Delete Modal State ─────────────────────────────────────────────────────
+  const [deletingTx, setDeletingTx] = useState<FinanceTransaction | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const openEditTx = (tx: FinanceTransaction) => {
+    setEditingTx(tx);
+    setEditTxType(tx.type);
+    setEditTxDate(tx.date);
+    setEditTxTime(tx.time);
+    setEditTxDesc(tx.description);
+    setEditTxAmount(String(tx.amount));
+    setEditTxPayee(tx.payee);
+    setEditTxCategory(tx.category);
+  };
+
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTx) return;
+    if (!editTxDate || !editTxDesc || !editTxAmount || !editTxPayee || !editTxCategory) {
+      toast.error('Preencha todos os campos obrigatórios.');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await updateTransaction(editingTx.id, {
+        type: editTxType,
+        date: editTxDate,
+        time: editTxTime,
+        description: editTxDesc,
+        amount: parseFloat(editTxAmount),
+        payee: editTxPayee,
+        category: editTxCategory,
+      });
+      toast.success('Lançamento atualizado com sucesso!');
+      setEditingTx(null);
+    } catch {
+      toast.error('Erro ao salvar alterações.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingTx) return;
+    setIsDeleting(true);
+    try {
+      await deleteTransaction(deletingTx.id);
+      toast.success('Lançamento excluído com sucesso.');
+      setDeletingTx(null);
+    } catch {
+      toast.error('Erro ao excluir lançamento.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Close edit modal on ESC
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setEditingTx(null); };
+    if (editingTx) document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [editingTx]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -327,7 +402,7 @@ export default function ModuloFinanceiro() {
                   .filter(t => t.type === (activeTab === 'despesas' ? 'DESPESA' : 'RECEBIMENTO'))
                   .sort((a, b) => new Date(`${b.date}T${b.time}`).getTime() - new Date(`${a.date}T${a.time}`).getTime())
                   .map(tx => (
-                  <tr key={tx.id} className="hover:bg-white/[0.02]">
+                  <tr key={tx.id} className="hover:bg-white/[0.02] group">
                     <td className="p-4 font-mono text-xs text-gray-400">
                       <div>{new Date(tx.date).toLocaleDateString('pt-BR')}</div>
                       <div className="text-[10px] text-gray-600">{tx.time}</div>
@@ -343,9 +418,18 @@ export default function ModuloFinanceiro() {
                       {tx.type === 'DESPESA' ? '- ' : '+ '}R$ {tx.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="p-4 text-center">
-                      <button onClick={() => toast.info('Funcionalidade de edição em desenvolvimento.')} className="p-1.5 text-gray-500 hover:text-ferppa-gold transition-colors">
-                        <Edit className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {isAdmin && (
+                          <button onClick={() => openEditTx(tx)} className="p-1.5 rounded-lg text-gray-400 hover:text-ferppa-gold hover:bg-ferppa-gold/10 transition-all" title="Editar">
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {isAdmin && (
+                          <button onClick={() => setDeletingTx(tx)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all" title="Excluir">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -361,6 +445,146 @@ export default function ModuloFinanceiro() {
           </div>
         </div>
       )}
+
+      {/* ─── EDIT MODAL ──────────────────────────────────────────────────────── */}
+      {editingTx && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.80)', backdropFilter: 'blur(10px)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setEditingTx(null); }}
+        >
+          <div
+            className="relative w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, #1a2426 0%, #131b1c 100%)',
+              border: '1px solid rgba(212,175,55,0.3)',
+              animation: 'modalIn 0.25s cubic-bezier(.34,1.56,.64,1)',
+            }}
+          >
+            <div className="h-1 w-full" style={{ background: 'linear-gradient(90deg, #d4af37, #b8960c)' }} />
+
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                  style={{ background: 'rgba(212,175,55,0.15)', border: '1px solid rgba(212,175,55,0.3)' }}>
+                  <DollarSign className="w-5 h-5 text-ferppa-gold" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Editar Lançamento Financeiro</h3>
+                  <p className="text-[11px] text-gray-500 mt-0.5">{editingTx.description}</p>
+                </div>
+              </div>
+              <button onClick={() => setEditingTx(null)} className="p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSave}>
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Tipo</label>
+                  <select value={editTxType} onChange={e => setEditTxType(e.target.value as TransactionType)}
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite font-bold">
+                    <option value="DESPESA">Saída (Despesa)</option>
+                    {isAdmin && <option value="RECEBIMENTO">Entrada (Receita)</option>}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Data</label>
+                  <input type="date" value={editTxDate} onChange={e => setEditTxDate(e.target.value)} required
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Hora</label>
+                  <input type="time" value={editTxTime} onChange={e => setEditTxTime(e.target.value)} required
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Valor (R$)</label>
+                  <input type="number" step="0.01" value={editTxAmount} onChange={e => setEditTxAmount(e.target.value)} required
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite font-mono font-bold" />
+                </div>
+                <div className="space-y-1.5 lg:col-span-2">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Descrição</label>
+                  <input type="text" value={editTxDesc} onChange={e => setEditTxDesc(e.target.value)} required
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Pessoa / Fornecedor</label>
+                  <input type="text" value={editTxPayee} onChange={e => setEditTxPayee(e.target.value)} required
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] text-gray-400 font-semibold block uppercase tracking-wider">Categoria</label>
+                  <select value={editTxCategory} onChange={e => setEditTxCategory(e.target.value)} required
+                    className="w-full bg-ferppa-dark border border-[#26383a] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-ferppa-gold text-ferppa-offwhite">
+                    <option value="">Selecione...</option>
+                    {editTxType === 'DESPESA' ? (
+                      <>
+                        <option value="Manutenção Frota">Manutenção Frota</option>
+                        <option value="Peças e Insumos">Peças e Insumos</option>
+                        <option value="Folha Pagamento">Folha Pagamento</option>
+                        <option value="Combustível Avulso">Combustível Avulso</option>
+                        <option value="Impostos">Impostos</option>
+                        <option value="Outros">Outros</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="Faturamento Contrato">Faturamento Contrato</option>
+                        <option value="Venda Avulsa">Venda Avulsa</option>
+                        <option value="Outros">Outros</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                {/* Live amount preview */}
+                <div className="lg:col-span-4">
+                  <div className="rounded-xl px-4 py-3 border border-ferppa-gold/20"
+                    style={{ background: 'rgba(212,175,55,0.06)' }}>
+                    <div className="text-[10px] uppercase tracking-widest text-gray-500">Valor do Lançamento</div>
+                    <div className={`text-xl font-mono font-bold mt-0.5 ${editTxType === 'DESPESA' ? 'text-red-400' : 'text-green-400'}`}>
+                      {editTxType === 'DESPESA' ? '- ' : '+ '}R$ {Number(editTxAmount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/10"
+                style={{ background: 'rgba(0,0,0,0.2)' }}>
+                <button type="button" onClick={() => setEditingTx(null)}
+                  className="px-5 py-2.5 rounded-lg text-sm font-bold text-gray-400 hover:text-white hover:bg-white/5 border border-white/10 transition-colors">
+                  CANCELAR
+                </button>
+                <button type="submit" disabled={isSaving}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-ferppa-dark transition-all active:scale-95 disabled:opacity-50"
+                  style={{ background: 'linear-gradient(135deg, #d4af37, #b8960c)', boxShadow: '0 4px 15px rgba(212,175,55,0.3)' }}>
+                  <Save className="w-4 h-4" />
+                  {isSaving ? 'SALVANDO...' : 'SALVAR ALTERAÇÕES'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <style>{`
+            @keyframes modalIn {
+              from { opacity: 0; transform: scale(0.93) translateY(10px); }
+              to   { opacity: 1; transform: scale(1)    translateY(0);    }
+            }
+          `}</style>
+        </div>
+      )}
+
+      {/* ─── DELETE CONFIRM MODAL ─────────────────────────────────────────────── */}
+      <ConfirmDeleteModal
+        isOpen={!!deletingTx}
+        onClose={() => setDeletingTx(null)}
+        onConfirm={handleDeleteConfirm}
+        isLoading={isDeleting}
+        title="Excluir Lançamento Financeiro"
+        description="Esta ação é permanente. O lançamento será removido do banco de dados e o DRE será recalculado automaticamente."
+        itemLabel={deletingTx ? `${deletingTx.type === 'DESPESA' ? 'DESPESA' : 'RECEITA'} — ${deletingTx.description} — R$ ${deletingTx.amount.toFixed(2)}` : undefined}
+      />
     </div>
   );
 }
